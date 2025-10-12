@@ -1,6 +1,7 @@
 *.log
 .DS_Store
 .env
+.env.*
 .env.backup
 .env.production
 .phpactor.json
@@ -18,7 +19,12 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/logs/
+/storage/framework/
 /vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/pasteleria-*.json
+/creds.b64
+composer.phar
