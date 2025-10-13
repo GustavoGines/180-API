@@ -31,7 +31,7 @@ php artisan config:cache --no-ansi   || echo "WARN: config:cache falló (continu
 php artisan route:cache --no-ansi    || echo "WARN: route:cache falló (continuo)"
 
 # (Opcional) migraciones automáticas en prod
-# php artisan migrate --force || echo "WARN: migrate falló (continuo)"
+ php artisan migrate --force || echo "WARN: migrate falló (continuo)"
 
 # Permisos por las dudas (cuando se montan volúmenes)
 chown -R www-data:www-data storage bootstrap/cache || true
