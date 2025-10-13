@@ -28,6 +28,9 @@ COPY . .
 # Copiá vendor desde la etapa de composer
 COPY --from=vendor /app/vendor /var/www/html/vendor
 
+# Traer composer al runtime desde la imagen composer:2 (tu stage vendor)
+COPY --from=vendor /usr/bin/composer /usr/local/bin/composer
+
 # Permisos requeridos por Laravel
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
