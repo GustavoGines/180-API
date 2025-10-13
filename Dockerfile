@@ -30,9 +30,16 @@ COPY --from=vendor /app/vendor /var/www/html/vendor
 COPY --from=vendor /usr/bin/composer /usr/local/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# Permisos Laravel
-RUN chown -R www-data:www-data storage bootstrap/cache \
- && chmod -R 775 storage/bootstrap/cache storage
+# Crear las carpetas que Laravel necesita (por si no vinieron en el repo)
+RUN mkdir -p \
+    storage/app \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
+ && chown -R www-data:www-data storage bootstrap/cache \
+ && chmod -R ug+rwX storage bootstrap/cache
 
 # ❌ Quitar este paso (era el que disparaba artisan en build)
 # RUN composer dump-autoload --optimize --no-interaction --no-ansi

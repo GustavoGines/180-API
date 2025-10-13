@@ -2,7 +2,6 @@
 set -e
 
 # ---------- Apache: escuchar el puerto que Render expone ----------
-# Sobrescribimos ports.conf en runtime para usar $PORT
 if [ -n "${PORT:-}" ]; then
   echo "Listen ${PORT}" > /etc/apache2/ports.conf
 else
@@ -12,7 +11,12 @@ fi
 # ---------- Laravel runtime prep ----------
 cd /var/www/html
 
-# Si usás SQLite en dev, creá el archivo si falta
+# Asegurar carpetas y permisos ANTES de Artisan
+mkdir -p storage/app storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache || true
+chmod -R ug+rwX storage bootstrap/cache || true
+
+# Si usás SQLite en dev, crear el archivo si falta
 if [ "${DB_CONNECTION:-}" = "sqlite" ]; then
   php -r "if(!file_exists('database/database.sqlite')){ @mkdir('database', 0775, true); touch('database/database.sqlite'); }"
 fi
@@ -30,11 +34,16 @@ php artisan config:cache --no-ansi   || echo "WARN: config:cache falló (continu
 # route:cache falla si hay closures; intentarlo pero no romper
 php artisan route:cache --no-ansi    || echo "WARN: route:cache falló (continuo)"
 
-# (Opcional) migraciones automáticas en prod
- php artisan migrate --force || echo "WARN: migrate falló (continuo)"
-
-# Permisos por las dudas (cuando se montan volúmenes)
-chown -R www-data:www-data storage bootstrap/cache || true
+# (Opcional) migraciones automáticas en prod con retry simple (DB puede tardar en estar lista)
+if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+  tries=5
+  until php artisan migrate --force || [ $tries -le 1 ]; do
+    echo "WARN: migrate falló, reintento en 5s..."
+    tries=$((tries-1))
+    sleep 5
+  done || echo "WARN: migrate falló definitivamente (continuo)"
+fi
 
 # ---------- Start Apache ----------
 exec apache2-foreground
+# ---------- FIN ----------
