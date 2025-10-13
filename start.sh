@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
-# En producción los env vienen de Render. Si falta APP_KEY, lo generamos una vez.
-if [ -z "${APP_KEY}" ]; then
-  php artisan key:generate --force
+# Generar APP_KEY si falta (Render setea env; no se usa .env)
+if [ -z "${APP_KEY}" ] || [ "${APP_KEY}" = "" ]; then
+  php artisan key:generate --force || true
 fi
 
-# Cache de config/routes/views (si querés comentar los cache en primeros deploys, podés)
+# Caches (si es primer deploy y da error, no rompas)
 php artisan config:cache || true
-php artisan route:cache || true
-php artisan view:cache || true
+php artisan route:cache  || true
+php artisan view:cache   || true
 
-# Migraciones (forzadas)
+# Migraciones/seeders (idempotentes)
 php artisan migrate --force || true
 php artisan db:seed --force || true
 
-# Asegurar permisos (por las dudas)
+# Permisos por las dudas
 chown -R www-data:www-data storage bootstrap/cache
 
-# Arrancar Apache en primer plano
+# Levantar Apache en primer plano
 apache2-foreground
