@@ -1,22 +1,40 @@
 #!/usr/bin/env bash
 set -e
 
-# Generar APP_KEY si falta (Render setea env; no se usa .env)
-if [ -z "${APP_KEY}" ] || [ "${APP_KEY}" = "" ]; then
-  php artisan key:generate --force || true
+# ---------- Apache: escuchar el puerto que Render expone ----------
+# Sobrescribimos ports.conf en runtime para usar $PORT
+if [ -n "${PORT:-}" ]; then
+  echo "Listen ${PORT}" > /etc/apache2/ports.conf
+else
+  echo "WARN: \$PORT no está seteado; Apache quedará en 80"
 fi
 
-# Caches (si es primer deploy y da error, no rompas)
-php artisan config:cache || true
-php artisan route:cache  || true
-php artisan view:cache   || true
+# ---------- Laravel runtime prep ----------
+cd /var/www/html
 
-# Migraciones/seeders (idempotentes)
-php artisan migrate --force || true
-php artisan db:seed --force || true
+# Si usás SQLite en dev, creá el archivo si falta
+if [ "${DB_CONNECTION:-}" = "sqlite" ]; then
+  php -r "if(!file_exists('database/database.sqlite')){ @mkdir('database', 0775, true); touch('database/database.sqlite'); }"
+fi
 
-# Permisos por las dudas
-chown -R www-data:www-data storage bootstrap/cache
+# Generar APP_KEY si no existe (útil en entornos efímeros)
+if [ -z "${APP_KEY:-}" ]; then
+  echo "No APP_KEY found; generating one..."
+  php artisan key:generate --force || echo "WARN: key:generate falló (continuo)"
+fi
 
-# Levantar Apache en primer plano
-apache2-foreground
+# Descubrir paquetes y caches (tolerantes para no tumbar el contenedor)
+php artisan package:discover --ansi || echo "WARN: package:discover falló (continuo)"
+php artisan config:cache --no-ansi   || echo "WARN: config:cache falló (continuo)"
+
+# route:cache falla si hay closures; intentarlo pero no romper
+php artisan route:cache --no-ansi    || echo "WARN: route:cache falló (continuo)"
+
+# (Opcional) migraciones automáticas en prod
+# php artisan migrate --force || echo "WARN: migrate falló (continuo)"
+
+# Permisos por las dudas (cuando se montan volúmenes)
+chown -R www-data:www-data storage bootstrap/cache || true
+
+# ---------- Start Apache ----------
+exec apache2-foreground
