@@ -21,10 +21,10 @@ if [ "${DB_CONNECTION:-}" = "sqlite" ]; then
   php -r "if(!file_exists('database/database.sqlite')){ @mkdir('database', 0775, true); touch('database/database.sqlite'); }"
 fi
 
-# Generar APP_KEY si no existe (útil en entornos efímeros)
+# APP_KEY sin .env: generarlo en memoria si no viene por env (no usar key:generate)
 if [ -z "${APP_KEY:-}" ]; then
-  echo "No APP_KEY found; generating one..."
-  php artisan key:generate --force || echo "WARN: key:generate falló (continuo)"
+  echo "No APP_KEY env; generating ephemeral key for this runtime..."
+  export APP_KEY="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
 fi
 
 # Descubrir paquetes y caches (tolerantes para no tumbar el contenedor)
