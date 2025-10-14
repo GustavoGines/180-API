@@ -3,7 +3,6 @@ FROM composer:2 AS vendor
 WORKDIR /app
 ENV COMPOSER_ALLOW_SUPERUSER=1
 COPY composer.json composer.lock ./
-# Optimizado y sin scripts (no hay artisan en esta etapa)
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader
 
 # -------- Etapa 2: runtime PHP + Apache --------
@@ -19,25 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Opcional: habilitar opcache
 RUN docker-php-ext-enable opcache || true
 
-# ---- VHOST para Laravel en /public ----
-ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-RUN printf "<VirtualHost *:80>\n\
-    ServerName localhost\n\
-    DocumentRoot ${APACHE_DOCUMENT_ROOT}\n\
-\n\
-    <Directory ${APACHE_DOCUMENT_ROOT}>\n\
-        Options Indexes FollowSymLinks\n\
-        AllowOverride All\n\
-        Require all granted\n\
-        DirectoryIndex index.php\n\
-    </Directory>\n\
-\n\
-    ErrorLog \${APACHE_LOG_DIR}/error.log\n\
-    CustomLog \${APACHE_LOG_DIR}/access.log combined\n\
-</VirtualHost>\n" > /etc/apache2/sites-available/000-default.conf \
- && echo "ServerName localhost" > /etc/apache2/conf-available/fqdn.conf \
- && a2enconf fqdn
-
 WORKDIR /var/www/html
 
 # Código (aquí sí está artisan)
@@ -48,7 +28,7 @@ COPY --from=vendor /app/vendor /var/www/html/vendor
 COPY --from=vendor /usr/bin/composer /usr/local/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# Crear carpetas que Laravel necesita (por si no vinieron en el repo) y permisos
+# Crear carpetas Laravel (por si no vinieron en el repo) y permisos
 RUN mkdir -p \
     storage/app \
     storage/framework/cache \
