@@ -8,23 +8,24 @@ else
   echo "WARN: \$PORT no está seteado; Apache quedará en 80"
 fi
 
-# ---- VHost runtime: forzar /public sí o sí ----
-cat >/etc/apache2/sites-available/laravel.conf <<'CONF'
-<VirtualHost *:80>
+# ---- VHost runtime: forzar /public + puerto correcto ----
+# IMPORTANTE: NO usar heredoc con comillas, así ${PORT} se expande.
+cat >/etc/apache2/sites-available/laravel.conf <<EOF
+<VirtualHost *:${PORT}>
     ServerName localhost
     DocumentRoot /var/www/html/public
 
     <Directory /var/www/html/public>
-        Options Indexes FollowSymLinks
+        Options FollowSymLinks
         AllowOverride All
         Require all granted
-        DirectoryIndex index.php
+        DirectoryIndex index.php index.html
     </Directory>
 
-    ErrorLog ${APACHE_LOG_DIR}/error.log
-    CustomLog ${APACHE_LOG_DIR}/access.log combined
+    ErrorLog \${APACHE_LOG_DIR}/error.log
+    CustomLog \${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
-CONF
+EOF
 
 # Deshabilitar default y habilitar nuestro vhost
 a2dissite 000-default >/dev/null 2>&1 || true
@@ -42,14 +43,9 @@ mkdir -p storage/app storage/framework/{cache,sessions,views} storage/logs boots
 chown -R www-data:www-data storage bootstrap/cache || true
 chmod -R ug+rwX storage bootstrap/cache || true
 
-# SQLite solo si corresponde
-if [ "${DB_CONNECTION:-}" = "sqlite" ]; then
-  php -r "if(!file_exists('database/database.sqlite')){ @mkdir('database', 0775, true); touch('database/database.sqlite'); }"
-fi
-
-# APP_KEY sin .env: generarlo en memoria si no viene por env (no usar key:generate)
+# APP_KEY (si no viene por env)
 if [ -z "${APP_KEY:-}" ]; then
-  echo "No APP_KEY env; generating ephemeral key for this runtime..."
+  echo "No APP_KEY env; generating ephemeral key..."
   export APP_KEY="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
 fi
 
@@ -57,21 +53,20 @@ fi
 php artisan package:discover --ansi || echo "WARN: package:discover falló (continuo)"
 php artisan config:cache --no-ansi   || echo "WARN: config:cache falló (continuo)"
 php artisan route:cache --no-ansi    || echo "WARN: route:cache falló (continuo)"
+php artisan view:cache --no-ansi     || echo "WARN: view:cache falló (continuo)"
 
-# Migraciones con retry simple (opcional)
+# Migraciones con retry simple
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   tries=5
   until php artisan migrate --force || [ $tries -le 1 ]; do
     echo "WARN: migrate falló, reintento en 5s..."
-    tries=$((tries-1))
-    sleep 5
+    tries=$((tries-1)); sleep 5
   done || echo "WARN: migrate falló definitivamente (continuo)"
 fi
 
-# (Opcional) Diagnóstico útil: ver qué vhost quedó activo
+# Diagnóstico útil (ver qué vhost quedó activo)
 apache2ctl -S || true
 grep -R "DocumentRoot" /etc/apache2/sites-enabled/ -n || true
 
 # ---------- Start Apache ----------
 exec apache2-foreground
-# ---------- FIN ----------
