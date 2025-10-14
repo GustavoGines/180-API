@@ -8,26 +8,6 @@ else
   echo "WARN: \$PORT no está seteado; Apache quedará en 80"
 fi
 
-# ---- VHost runtime: forzar /public sí o sí ----
-cat >/etc/apache2/sites-available/000-default.conf <<'CONF'
-<VirtualHost *:80>
-    ServerName localhost
-    DocumentRoot /var/www/html/public
-
-    <Directory /var/www/html/public>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
-        DirectoryIndex index.php
-    </Directory>
-
-    ErrorLog ${APACHE_LOG_DIR}/error.log
-    CustomLog ${APACHE_LOG_DIR}/access.log combined
-</VirtualHost>
-CONF
-a2ensite 000-default >/dev/null 2>&1 || true
-
-
 # ---------- Laravel runtime prep ----------
 cd /var/www/html
 
