@@ -19,21 +19,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Opcional: habilitar opcache
 RUN docker-php-ext-enable opcache || true
 
-# DocumentRoot en /public y permitir .htaccess
+# ---- VHOST para Laravel en /public ----
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-
-# ✅ Usar comillas dobles para expandir ${APACHE_DOCUMENT_ROOT}
-RUN sed -ri -e "s#DocumentRoot /var/www/html#DocumentRoot ${APACHE_DOCUMENT_ROOT}#" /etc/apache2/sites-available/000-default.conf \
- && sed -ri -e "s#<Directory /var/www/>#<Directory ${APACHE_DOCUMENT_ROOT}/>#" /etc/apache2/apache2.conf \
- && sed -ri -e 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf \
- && printf "<Directory ${APACHE_DOCUMENT_ROOT}>\n\
-    Options Indexes FollowSymLinks\n\
-    AllowOverride All\n\
-    Require all granted\n\
-    DirectoryIndex index.php\n\
-</Directory>\n" > /etc/apache2/conf-available/laravel.conf \
- && a2enconf laravel \
- && echo 'ServerName localhost' > /etc/apache2/conf-available/fqdn.conf \
+RUN printf "<VirtualHost *:80>\n\
+    ServerName localhost\n\
+    DocumentRoot ${APACHE_DOCUMENT_ROOT}\n\
+\n\
+    <Directory ${APACHE_DOCUMENT_ROOT}>\n\
+        Options Indexes FollowSymLinks\n\
+        AllowOverride All\n\
+        Require all granted\n\
+        DirectoryIndex index.php\n\
+    </Directory>\n\
+\n\
+    ErrorLog \${APACHE_LOG_DIR}/error.log\n\
+    CustomLog \${APACHE_LOG_DIR}/access.log combined\n\
+</VirtualHost>\n" > /etc/apache2/sites-available/000-default.conf \
+ && echo "ServerName localhost" > /etc/apache2/conf-available/fqdn.conf \
  && a2enconf fqdn
 
 WORKDIR /var/www/html
