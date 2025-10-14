@@ -9,7 +9,6 @@ else
 fi
 
 # ---- VHost runtime: forzar /public + puerto correcto ----
-# IMPORTANTE: NO usar heredoc con comillas, así ${PORT} se expande.
 cat >/etc/apache2/sites-available/laravel.conf <<EOF
 <VirtualHost *:${PORT}>
     ServerName localhost
@@ -27,18 +26,15 @@ cat >/etc/apache2/sites-available/laravel.conf <<EOF
 </VirtualHost>
 EOF
 
-# Deshabilitar default y habilitar nuestro vhost
 a2dissite 000-default >/dev/null 2>&1 || true
 a2ensite laravel >/dev/null 2>&1 || true
 
-# (Opcional) FQDN warning off
 echo "ServerName localhost" > /etc/apache2/conf-available/fqdn.conf
 a2enconf fqdn >/dev/null 2>&1 || true
 
 # ---------- Laravel runtime prep ----------
 cd /var/www/html
 
-# Estructura y permisos ANTES de Artisan
 mkdir -p storage/app storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache || true
 chmod -R ug+rwX storage bootstrap/cache || true
@@ -55,16 +51,33 @@ php artisan config:cache --no-ansi   || echo "WARN: config:cache falló (continu
 php artisan route:cache --no-ansi    || echo "WARN: route:cache falló (continuo)"
 php artisan view:cache --no-ansi     || echo "WARN: view:cache falló (continuo)"
 
-# Migraciones con retry simple
-if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+# ---------- Migraciones / Seed controlados por ENV ----------
+RUN_FRESH=${RUN_FRESH:-0}
+RUN_SEED=${RUN_SEED:-0}
+SEEDER_CLASS=${SEEDER_CLASS:-DatabaseSeeder}
+
+if [ "$RUN_FRESH" = "1" ]; then
+  echo ">> RUN_FRESH=1 → php artisan migrate:fresh --force"
+  php artisan migrate:fresh --force || { echo "ERROR: migrate:fresh falló"; exit 1; }
+  if [ "$RUN_SEED" = "1" ]; then
+    echo ">> RUN_SEED=1 → php artisan db:seed --class=${SEEDER_CLASS} --force"
+    php artisan db:seed --class="${SEEDER_CLASS}" --force || echo "WARN: seed falló (continuo)"
+  fi
+else
+  echo ">> RUN_FRESH=0 → php artisan migrate --force"
   tries=5
   until php artisan migrate --force || [ $tries -le 1 ]; do
     echo "WARN: migrate falló, reintento en 5s..."
     tries=$((tries-1)); sleep 5
   done || echo "WARN: migrate falló definitivamente (continuo)"
+
+  if [ "$RUN_SEED" = "1" ]; then
+    echo ">> RUN_SEED=1 → php artisan db:seed --class=${SEEDER_CLASS} --force"
+    php artisan db:seed --class="${SEEDER_CLASS}" --force || echo "WARN: seed falló (continuo)"
+  fi
 fi
 
-# Diagnóstico útil (ver qué vhost quedó activo)
+# Diagnóstico útil
 apache2ctl -S || true
 grep -R "DocumentRoot" /etc/apache2/sites-enabled/ -n || true
 

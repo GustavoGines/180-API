@@ -7,6 +7,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\DeviceController;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Http\Controllers\UserController;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
@@ -46,3 +47,9 @@ Route::post('/auth/token', function (Request $request) {
 
     return response()->json(['token' => $token]);
 });
+
+Route::middleware(['auth:sanctum','can:manage-users'])->group(function () {
+    Route::post('/users', [UserController::class, 'store']); // crear usuarios
+});
+
+Route::middleware('auth:sanctum')->get('/me', fn() => auth()->user());
