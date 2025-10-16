@@ -75,9 +75,18 @@ class OrderController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Order $order)
     {
-        //
+        // Laravel automáticamente encontrará el pedido con el ID de la URL.
+        // Ahora, cargamos sus relaciones (cliente e ítems) para que viajen en el JSON.
+        $order->load(['client', 'items']);
+
+        // Devolvemos el pedido. Opcional pero recomendado: envuélvelo en un Resource.
+        // Aquí lo devolvemos directamente para simplicidad.
+        return response()->json($order);
+
+        // Si usas API Resources (recomendado), se vería así:
+        // return new OrderResource($order);
     }
 
     /**
