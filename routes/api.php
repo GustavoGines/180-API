@@ -8,6 +8,8 @@ use App\Http\Controllers\DeviceController;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\NewPasswordController;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
@@ -54,3 +56,11 @@ Route::middleware(['auth:sanctum','can:manage-users'])->group(function () {
 });
 
 Route::middleware('auth:sanctum')->get('/me', fn() => auth()->user());
+
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
+    ->middleware('guest')
+    ->name('password.email');
+
+Route::post('/reset-password', [NewPasswordController::class, 'store'])
+    ->middleware('guest')
+    ->name('password.store');
