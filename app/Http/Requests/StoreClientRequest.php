@@ -22,12 +22,12 @@ class StoreClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'    => ['required','string','max:120'],
-            'phone'   => ['nullable','string','max:40'],
-            'email'   => ['nullable','email'],
-            'ig_handle'=>['nullable','string','max:80'],
-            'address' => ['nullable','string','max:255'],
-            'notes'   => ['nullable','string'],
+            'name' => ['required', 'string', 'max:120'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'email' => ['nullable', 'email'],
+            'ig_handle' => ['nullable', 'string', 'max:80'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
         ];
     }
 }

@@ -1,15 +1,15 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ClientController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\DeviceController;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\UserController;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
@@ -35,9 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::post('/auth/token', function (Request $request) {
     $request->validate([
-        'email' => ['required','email'],
-        'password' => ['required','string'],
-        'device_name' => ['required','string'], // ej: "postman"
+        'email' => ['required', 'email'],
+        'password' => ['required', 'string'],
+        'device_name' => ['required', 'string'], // ej: "postman"
     ]);
 
     $user = User::where('email', $request->email)->first();
@@ -51,11 +51,11 @@ Route::post('/auth/token', function (Request $request) {
     return response()->json(['token' => $token]);
 });
 
-Route::middleware(['auth:sanctum','can:manage-users'])->group(function () {
+Route::middleware(['auth:sanctum', 'can:manage-users'])->group(function () {
     Route::post('/users', [UserController::class, 'store']); // crear usuarios
 });
 
-Route::middleware('auth:sanctum')->get('/me', fn() => auth()->user());
+Route::middleware('auth:sanctum')->get('/me', fn () => auth()->user());
 
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
     ->middleware('guest')

@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -30,11 +30,11 @@ return new class extends Migration
         ");
 
         // Unicidad case-insensitive de email, permitiendo NULL
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX clients_email_ci_unique
             ON clients ((lower(email)))
             WHERE email IS NOT NULL
-        ");
+        ');
     }
 
     public function down(): void

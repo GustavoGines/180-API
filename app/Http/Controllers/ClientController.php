@@ -6,7 +6,6 @@ use App\Http\Requests\StoreClientRequest;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 class ClientController extends Controller
 {
@@ -21,7 +20,7 @@ class ClientController extends Controller
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 // Para PostgreSQL usamos ILIKE (case-insensitive)
-                $like = '%' . str_replace('%', '\%', $searchQuery) . '%';
+                $like = '%'.str_replace('%', '\%', $searchQuery).'%';
                 $builder->where(function ($subquery) use ($like) {
                     $subquery->whereRaw('name ILIKE ?', [$like])
                         ->orWhereRaw('phone ILIKE ?', [$like])
@@ -55,7 +54,7 @@ class ClientController extends Controller
         //
     }
 
-     /**
+    /**
      * PUT /api/clients/{client}
      * Actualiza un cliente.
      */

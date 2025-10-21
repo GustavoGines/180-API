@@ -15,10 +15,10 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'     => ['required','string','max:100'],
-            'email'    => ['required','email','max:150','unique:users,email'],
-            'password' => ['required','string','min:8','confirmed'], // requiere password_confirmation
-            'role'     => ['required','in:admin,staff'],
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:150', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'], // requiere password_confirmation
+            'role' => ['required', 'in:admin,staff'],
         ];
     }
 }

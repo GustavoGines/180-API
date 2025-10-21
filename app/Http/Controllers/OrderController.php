@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
-use App\Models\Client;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -14,9 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function __construct(private GoogleCalendarService $googleCalendarService)
-    {
-    }
+    public function __construct(private GoogleCalendarService $googleCalendarService) {}
 
     /**
      * GET /api/orders?from=YYYY-MM-DD&to=YYYY-MM-DD&status=confirmed
@@ -25,8 +21,8 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $fromDate = $request->query('from');      // YYYY-MM-DD
-        $toDate   = $request->query('to');        // YYYY-MM-DD
-        $status   = $request->query('status');    // draft|confirmed|delivered|canceled
+        $toDate = $request->query('to');        // YYYY-MM-DD
+        $status = $request->query('status');    // draft|confirmed|delivered|canceled
 
         $orders = Order::query()
             ->with(['client', 'items'])
@@ -99,34 +95,34 @@ class OrderController extends Controller
 
         DB::transaction(function () use ($validated, $order) {
             // 1) Actualizar cabecera SIN items ni total
-            $order->update(Arr::except($validated, ['items','total','deposit']));
-    
+            $order->update(Arr::except($validated, ['items', 'total', 'deposit']));
+
             // 2) Evitar violación del CHECK mientras total queda en 0
             $originalDeposit = $validated['deposit'] ?? $order->deposit;
             $order->deposit = 0;     // o null
             $order->save();
-    
+
             // 3) Reemplazar ítems
             $order->items()->delete();
             foreach ($validated['items'] as $itemPayload) {
                 $order->items()->create($itemPayload);
             }
-    
+
             // 4) Recalcular total (si tenés método o dejás que lo haga el trigger)
             // $order->recalculateTotals(); // si implementaste este método
             $order->refresh(); // tomar total actualizado por el trigger
-    
+
             // 5) Ajustar depósito final (nunca mayor al total)
             if ($originalDeposit !== null) {
-                $order->deposit = min((float)$originalDeposit, (float)$order->total);
+                $order->deposit = min((float) $originalDeposit, (float) $order->total);
                 $order->save();
             }
-    
+
             // 6) Sincronizar Calendar
-            $this->googleCalendarService->updateFromOrder($order->fresh(['client','items']));
+            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
         });
 
-    return response()->json($order->load(['client','items']));
+        return response()->json($order->load(['client', 'items']));
     }
 
     /**
@@ -136,7 +132,7 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         DB::transaction(function () use ($order) {
-            if (!empty($order->google_event_id)) {
+            if (! empty($order->google_event_id)) {
                 $this->googleCalendarService->deleteEvent($order->google_event_id);
             }
             $order->delete();

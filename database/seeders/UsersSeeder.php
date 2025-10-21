@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
 
 class UsersSeeder extends Seeder
 {
@@ -13,11 +13,11 @@ class UsersSeeder extends Seeder
         // Sugerencia: podés pasar las contraseñas por ENV si querés
         $users = [
             [
-                'name'  => 'Gustavo',
+                'name' => 'Gustavo',
                 'email' => 'ginesparker95@gmail.com',
                 'password' => env('SEED_PWD_GUSTAVO', 'Gusty1996'),
-                'role'  => 'admin',
-            ]
+                'role' => 'admin',
+            ],
         ];
 
         foreach ($users as $u) {
@@ -28,7 +28,7 @@ class UsersSeeder extends Seeder
             $user->role = $u['role'];
 
             // si es nuevo o la password en texto cambió, la re-hasheamos
-            if (!$user->exists || !Hash::check($u['password'], $user->password ?? '')) {
+            if (! $user->exists || ! Hash::check($u['password'], $user->password ?? '')) {
                 $user->password = Hash::make($u['password']);
             }
 

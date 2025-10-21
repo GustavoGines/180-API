@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -28,7 +26,7 @@ return new class extends Migration
          END;
          $$ LANGUAGE plpgsql;
         SQL);
-         
+
         // 2) Triggers en INSERT/UPDATE/DELETE de order_items
         DB::unprepared(<<<'SQL'
          CREATE OR REPLACE FUNCTION trg_order_items_after_change()
@@ -53,7 +51,7 @@ return new class extends Migration
          AFTER INSERT OR UPDATE OR DELETE ON order_items
          FOR EACH ROW EXECUTE FUNCTION trg_order_items_after_change();
         SQL);
-         
+
         // (Opcional) constraint: depósito <= total (evita incoherencias)
         DB::unprepared(<<<'SQL'
          ALTER TABLE orders
@@ -67,9 +65,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::unprepared("ALTER TABLE orders DROP CONSTRAINT IF EXISTS deposit_not_greater_than_total;");
-        DB::unprepared("DROP TRIGGER IF EXISTS trg_order_items_after_insupddel ON order_items;");
-        DB::unprepared("DROP FUNCTION IF EXISTS trg_order_items_after_change();");
-        DB::unprepared("DROP FUNCTION IF EXISTS update_order_total(BIGINT);");
+        DB::unprepared('ALTER TABLE orders DROP CONSTRAINT IF EXISTS deposit_not_greater_than_total;');
+        DB::unprepared('DROP TRIGGER IF EXISTS trg_order_items_after_insupddel ON order_items;');
+        DB::unprepared('DROP FUNCTION IF EXISTS trg_order_items_after_change();');
+        DB::unprepared('DROP FUNCTION IF EXISTS update_order_total(BIGINT);');
     }
 };

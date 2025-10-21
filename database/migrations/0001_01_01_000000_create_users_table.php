@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -26,11 +26,11 @@ return new class extends Migration
             CHECK (role IN ('admin','staff'))");
 
         // ✅ Unicidad case-insensitive en email
-        DB::statement("CREATE UNIQUE INDEX users_email_ci_unique ON users (LOWER(email))");
+        DB::statement('CREATE UNIQUE INDEX users_email_ci_unique ON users (LOWER(email))');
 
         // ✅ Índice útil por rol y por creado (dashboards / listados)
-        DB::statement("CREATE INDEX users_role_idx ON users (role)");
-        DB::statement("CREATE INDEX users_created_idx ON users (created_at)");
+        DB::statement('CREATE INDEX users_role_idx ON users (role)');
+        DB::statement('CREATE INDEX users_created_idx ON users (created_at)');
 
         // Password resets (si pensás usarlos por correo)
         Schema::create('password_reset_tokens', function (Blueprint $table) {
@@ -54,10 +54,10 @@ return new class extends Migration
     public function down(): void
     {
         // Borrar índices/constraints antes de dropear tabla (no estrictamente necesario)
-        DB::statement("DROP INDEX IF EXISTS users_email_ci_unique");
-        DB::statement("DROP INDEX IF EXISTS users_role_idx");
-        DB::statement("DROP INDEX IF EXISTS users_created_idx");
-        DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk");
+        DB::statement('DROP INDEX IF EXISTS users_email_ci_unique');
+        DB::statement('DROP INDEX IF EXISTS users_role_idx');
+        DB::statement('DROP INDEX IF EXISTS users_created_idx');
+        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk');
 
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');

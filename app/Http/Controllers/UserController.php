@@ -13,17 +13,17 @@ class UserController extends Controller
         $validated = $request->validated();
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
+            'name' => $validated['name'],
+            'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role'     => $validated['role'], // admin o staff
+            'role' => $validated['role'], // admin o staff
         ]);
 
         return response()->json([
-            'id'    => $user->id,
-            'name'  => $user->name,
+            'id' => $user->id,
+            'name' => $user->name,
             'email' => $user->email,
-            'role'  => $user->role,
+            'role' => $user->role,
         ], 201);
     }
 }

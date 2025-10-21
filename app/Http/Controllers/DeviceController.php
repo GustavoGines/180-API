@@ -24,16 +24,16 @@ class DeviceController extends Controller
     {
         $validated = $request->validate([
             'fcm_token' => ['required', 'string'],
-            'platform'  => ['nullable', 'in:android,ios'],
+            'platform' => ['nullable', 'in:android,ios'],
         ]);
 
         $device = Device::updateOrCreate(
             [
-                'user_id'   => $request->user()->id,
+                'user_id' => $request->user()->id,
                 'fcm_token' => $validated['fcm_token'],
             ],
             [
-                'platform'     => $validated['platform'] ?? null,
+                'platform' => $validated['platform'] ?? null,
                 'last_seen_at' => now(),
             ]
         );
