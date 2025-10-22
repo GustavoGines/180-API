@@ -49,19 +49,33 @@ class OrderController extends Controller
     public function store(StoreOrderRequest $request)
     {
         $validated = $request->validated();
-
-        /** @var Order $order */
         $order = null;
 
         DB::transaction(function () use (&$order, $validated) {
-            $order = Order::create(Arr::except($validated, ['items']));
-            foreach ($validated['items'] as $itemPayload) {
-                $order->items()->create($itemPayload);
+            // 1. Guarda la seña original y prepara datos para la orden (con seña en 0)
+            $originalDeposit = $validated['deposit'] ?? 0;
+            $orderData = Arr::except($validated, ['items', 'deposit']);
+            $orderData['deposit'] = 0;
+
+            // 2. Crea la orden. Esto pasa el check (seña 0 <= total 0)
+            $order = Order::create($orderData);
+
+            // 3. Crea los items. Esto dispara tu trigger que calcula y guarda el 'total'.
+            if (!empty($validated['items'])) {
+                $order->items()->createMany($validated['items']);
             }
 
-            // Crear evento en Google Calendar y guardar el ID
+            // 4. Refresca el modelo para obtener el 'total' que fue calculado por el trigger
+            $order->refresh();
+
+            // 5. Ahora sí, actualiza la seña, asegurando que no sea mayor al total
+            $order->deposit = min((float) $originalDeposit, (float) $order->total);
+
+            // 6. Crear evento en Google Calendar y guardar el ID
             $googleEventId = $this->googleCalendarService->createFromOrder($order->fresh(['client', 'items']));
             $order->google_event_id = $googleEventId;
+            
+            // 7. Guarda la orden por última vez con la seña y el ID del evento correctos
             $order->save();
         });
 
