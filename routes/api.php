@@ -10,7 +10,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
@@ -67,36 +66,3 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest')
     ->name('password.store');
-
-
-Route::get('/test-supabase-v2', function () {
-    // Usamos la variable REGION que ya tiene el ID del proyecto (ej: zdzkotlpixfhrcidetvb)
-    $projectRef = env('SUPABASE_REGION'); 
-    $apiKey = env('SUPABASE_SECRET');
-
-    if (empty($projectRef) || empty($apiKey)) {
-        return response()->json(['error' => 'Faltan SUPABASE_REGION y/o SUPABASE_SECRET.'], 500);
-    }
-
-    // Construimos la URL correcta para la API de Storage
-    $apiUrl = "https://{$projectRef}.supabase.co/storage/v1/bucket";
-
-    try {
-        $response = Http::withHeaders([
-            'apikey' => $apiKey,
-            'Authorization' => 'Bearer ' . $apiKey,
-        ])->get($apiUrl);
-
-        // Devolvemos el status, las cabeceras y el cuerpo crudo para tener más detalles
-        return response()->json([
-            'status' => $response->status(),
-            'headers' => $response->headers(),
-            'raw_body' => $response->body(), 
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Falló la conexión a Supabase.',
-            'message' => $e->getMessage(),
-        ], 500);
-    }
-});
