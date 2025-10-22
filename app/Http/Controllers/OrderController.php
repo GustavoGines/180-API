@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class OrderController extends Controller
 {
@@ -162,12 +163,12 @@ class OrderController extends Controller
             'photo' => 'required|image|max:2048', // Límite de 2MB
         ]);
     
-        // 2. Guardar la imagen en storage/app/public/order-photos
-        $path = $request->file('photo')->store('order-photos', 'public');
+        // 2. Usamos el disco 'supabase'
+        $path = $request->file('photo')->store('order-photos', 'supabase');
     
-        // 3. Devolver la URL pública completa de la imagen
+        // 3. Obtenemos la URL pública desde Supabase
         return response()->json([
-            'url' => asset('storage/' . $path)
+            'url' => Storage::disk('supabase')->url($path)
         ]);
     }
 }
