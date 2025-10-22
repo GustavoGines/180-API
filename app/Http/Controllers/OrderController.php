@@ -140,4 +140,20 @@ class OrderController extends Controller
 
         return response()->noContent();
     }
+
+    public function uploadPhoto(Request $request)
+    {
+        // 1. Validar que se haya enviado un archivo y que sea una imagen
+        $request->validate([
+            'photo' => 'required|image|max:2048', // Límite de 2MB
+        ]);
+    
+        // 2. Guardar la imagen en storage/app/public/order-photos
+        $path = $request->file('photo')->store('order-photos', 'public');
+    
+        // 3. Devolver la URL pública completa de la imagen
+        return response()->json([
+            'url' => asset('storage/' . $path)
+        ]);
+    }
 }
