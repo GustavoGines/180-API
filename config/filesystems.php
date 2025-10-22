@@ -68,7 +68,7 @@ return [
             'bucket' => env('SUPABASE_BUCKET'),
             'url' => env('SUPABASE_URL'),
             'endpoint' => env('SUPABASE_ENDPOINT'),
-            'use_path_style_endpoint' => false,
+            'use_path_style_endpoint' => true,
             'visibility' => 'public',
         ],
 
