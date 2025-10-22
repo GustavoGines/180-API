@@ -8,7 +8,7 @@ class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // la ruta tendrá 'can:manage-users', así que acá true
+        // La autorización se maneja en la ruta con 'can:admin', así que aquí permitimos continuar.
         return true;
     }
 

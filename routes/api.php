@@ -51,7 +51,7 @@ Route::post('/auth/token', function (Request $request) {
     return response()->json(['token' => $token]);
 });
 
-Route::middleware(['auth:sanctum', 'can:manage-users'])->group(function () {
+Route::middleware(['auth:sanctum', 'can:admin'])->group(function () {
     Route::post('/users', [UserController::class, 'store']); // crear usuarios
 });
 
