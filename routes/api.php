@@ -66,3 +66,31 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest')
     ->name('password.store');
+
+    use Illuminate\Support\Facades\Http;
+
+Route::get('/test-supabase', function () {
+    $projectUrl = rtrim(env('SUPABASE_ENDPOINT', ''), '/');
+    $apiKey = env('SUPABASE_SECRET');
+
+    if (empty($projectUrl) || empty($apiKey)) {
+        return response()->json(['error' => 'Variables de Supabase no configuradas.'], 500);
+    }
+
+    try {
+        $response = Http::withHeaders([
+            'apikey' => $apiKey,
+            'Authorization' => 'Bearer ' . $apiKey,
+        ])->get($projectUrl . '/storage/v1/bucket');
+
+        return response()->json([
+            'status' => $response->status(),
+            'body' => $response->json(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Falló la conexión a Supabase.',
+            'message' => $e->getMessage(),
+        ], 500);
+    }
+});
