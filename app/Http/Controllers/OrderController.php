@@ -10,6 +10,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
 
 class OrderController extends Controller
 {
@@ -23,7 +24,7 @@ class OrderController extends Controller
     {
         $fromDate = $request->query('from');      // YYYY-MM-DD
         $toDate = $request->query('to');        // YYYY-MM-DD
-        $status = $request->query('status');    // draft|confirmed|delivered|canceled
+        $status = $request->query('status');    // confirmed,ready,delivered,canceled
 
         $orders = Order::query()
             ->with(['client', 'items'])
@@ -55,8 +56,11 @@ class OrderController extends Controller
         DB::transaction(function () use (&$order, $validated) {
             // 1. Guarda la seña original y prepara datos para la orden (con seña en 0)
             $originalDeposit = $validated['deposit'] ?? 0;
-            $orderData = Arr::except($validated, ['items', 'deposit']);
+            $orderData = Arr::except($validated, ['items', 'deposit', 'status']);
             $orderData['deposit'] = 0;
+
+            // Si no se especifica un estado, por defecto es 'confirmed'
+            $orderData['status'] = $validated['status'] ?? 'confirmed';
 
             // 2. Crea la orden. Esto pasa el check (seña 0 <= total 0)
             $order = Order::create($orderData);
@@ -106,6 +110,11 @@ class OrderController extends Controller
      */
     public function update(StoreOrderRequest $request, Order $order)
     {
+
+        if (! Gate::allows('manage-orders')) {
+            abort(403, 'No tienes permiso para realizar esta acción.');
+        }
+
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $order) {
@@ -140,20 +149,34 @@ class OrderController extends Controller
         return response()->json($order->load(['client', 'items']));
     }
 
-    /**
-     * DELETE /api/orders/{order}
-     * Elimina el pedido y su evento en Google Calendar (si existe).
-     */
-    public function destroy(Order $order)
+    public function updateStatus(Request $request, Order $order)
     {
-        DB::transaction(function () use ($order) {
-            if (! empty($order->google_event_id)) {
-                $this->googleCalendarService->deleteEvent($order->google_event_id);
-            }
-            $order->delete();
-        });
+        // 1. Autorización: Usamos el Gate que creamos.
+        if (! Gate::allows('manage-orders')) {
+            abort(403, 'No tienes permiso para realizar esta acción.');
+        }
+    
+        // 2. Validación de los datos que pueden llegar
+        $validated = $request->validate([
+            'status' => ['sometimes', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'is_fully_paid' => ['sometimes', 'boolean'],
+        ]);
 
-        return response()->noContent();
+        // 3. Lógica para actualizar el estado
+        if (isset($validated['status'])) {
+            $order->status = $validated['status'];
+        }
+
+        // 4. Lógica para marcar como pagado
+        if (isset($validated['is_fully_paid']) && $validated['is_fully_paid'] === true) {
+            $order->deposit = $order->total;
+        }
+
+        // 5. Guardar los cambios
+        $order->save();
+
+        // 6. Devolver la orden actualizada
+        return response()->json($order->fresh(['client', 'items']));
     }
 
     public function uploadPhoto(Request $request)
@@ -170,5 +193,26 @@ class OrderController extends Controller
         return response()->json([
             'url' => Storage::disk('supabase')->url($path)
         ]);
+    }
+
+    /**
+     * DELETE /api/orders/{order}
+     * Elimina el pedido y su evento en Google Calendar (si existe).
+     */
+    public function destroy(Order $order)
+    {
+
+        if (! Gate::allows('manage-orders')) {
+            abort(403, 'No tienes permiso para realizar esta acción.');
+        }
+        
+        DB::transaction(function () use ($order) {
+            if (! empty($order->google_event_id)) {
+                $this->googleCalendarService->deleteEvent($order->google_event_id);
+            }
+            $order->delete();
+        });
+
+        return response()->noContent();
     }
 }

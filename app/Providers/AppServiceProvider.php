@@ -46,5 +46,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('admin', function (User $user) {
             return $user->role === 'admin';
         });
+
+        Gate::define('manage-orders', function (User $user) {
+            // Permite la acción si el rol del usuario es 'admin' o 'staff'
+            return in_array($user->role, ['admin', 'staff']);
+        });
+        
     }
 }

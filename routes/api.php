@@ -11,35 +11,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
-    return $request->user();
-});
+/*
+|--------------------------------------------------------------------------
+| Rutas Públicas (No requieren autenticación)
+|--------------------------------------------------------------------------
+*/
 
-// Breeze API ya provee /login, /register, /user, /logout
-Route::middleware('auth:sanctum')->group(function () {
-    // Clients
-    Route::get('/clients', [ClientController::class, 'index']);
-    Route::post('/clients', [ClientController::class, 'store']);
-    Route::put('/clients/{client}', [ClientController::class, 'update']);
-
-    // Orders
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::put('/orders/{order}', [OrderController::class, 'update']);
-    Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
-    Route::get('/orders/{order}', [OrderController::class, 'show']);
-    Route::post('/orders/upload-photo', [OrderController::class, 'uploadPhoto']);
-
-    // Devices (FCM)
-    Route::post('/devices/register', [DeviceController::class, 'store']);
-    
-});
-
+// Login personalizado para Sanctum
 Route::post('/auth/token', function (Request $request) {
     $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required', 'string'],
-        'device_name' => ['required', 'string'], // ej: "postman"
+        'device_name' => ['required', 'string'],
     ]);
 
     $user = User::where('email', $request->email)->first();
@@ -48,21 +31,46 @@ Route::post('/auth/token', function (Request $request) {
         return response()->json(['message' => 'Credenciales invalidas'], 422);
     }
 
-    $token = $user->createToken($request->device_name)->plainTextToken;
-
-    return response()->json(['token' => $token]);
+    return response()->json(['token' => $user->createToken($request->device_name)->plainTextToken]);
 });
 
-Route::middleware(['auth:sanctum', 'can:admin'])->group(function () {
-    Route::post('/users', [UserController::class, 'store']); // crear usuarios
+// Rutas para restablecer contraseña
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('guest')->name('password.email');
+Route::post('/reset-password', [NewPasswordController::class, 'store'])->middleware('guest')->name('password.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Rutas Protegidas (Requieren token de Sanctum)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // --- Usuario ---
+    Route::get('/user', fn(Request $request) => $request->user());
+    Route::get('/me', fn() => auth()->user());
+
+    // --- Clientes ---
+    Route::get('/clients', [ClientController::class, 'index']);
+    Route::post('/clients', [ClientController::class, 'store']);
+    Route::put('/clients/{client}', [ClientController::class, 'update']);
+
+    // --- Pedidos ---
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders/{order}', [OrderController::class, 'show']); // Corregido
+    Route::put('/orders/{order}', [OrderController::class, 'update']);
+    Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
+    Route::post('/orders/upload-photo', [OrderController::class, 'uploadPhoto']);
+    
+    // --- Estado del pedido---
+    Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+
+    // --- Dispositivos (FCM) ---
+    Route::post('/devices/register', [DeviceController::class, 'store']);
+    
+    // --- Rutas solo para Admins ---
+    Route::middleware('can:admin')->group(function () {
+        Route::post('/users', [UserController::class, 'store']);
+    });
 });
-
-Route::middleware('auth:sanctum')->get('/me', fn () => auth()->user());
-
-Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
-    ->middleware('guest')
-    ->name('password.email');
-
-Route::post('/reset-password', [NewPasswordController::class, 'store'])
-    ->middleware('guest')
-    ->name('password.store');

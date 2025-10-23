@@ -30,7 +30,7 @@ class StoreOrderRequest extends FormRequest
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
 
-            'status' => ['nullable', 'in:pending,draft,confirmed,delivered,canceled'],
+            'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
             'total' => ['nullable', 'numeric', 'min:0'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
