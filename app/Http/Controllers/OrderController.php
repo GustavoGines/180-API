@@ -183,7 +183,7 @@ class OrderController extends Controller
     {
         // 1. Validar que se haya enviado un archivo y que sea una imagen
         $request->validate([
-            'photo' => 'required|image|max:2048', // Límite de 2MB
+            'photo' => 'required|image|max:10240', // Límite de 10MB (10 * 1024)
         ]);
     
         // 2. Usamos el disco 'supabase'
@@ -205,7 +205,7 @@ class OrderController extends Controller
         if (! Gate::allows('manage-orders')) {
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
-        
+
         DB::transaction(function () use ($order) {
             if (! empty($order->google_event_id)) {
                 $this->googleCalendarService->deleteEvent($order->google_event_id);
