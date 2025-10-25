@@ -11,6 +11,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -207,9 +208,63 @@ class OrderController extends Controller
         }
 
         DB::transaction(function () use ($order) {
-            if (! empty($order->google_event_id)) {
-                $this->googleCalendarService->deleteEvent($order->google_event_id);
+            // --- INICIO: LÓGICA PARA BORRAR IMÁGENES DE SUPABASE ---
+            // 1. Cargar los items del pedido
+            $order->load('items');
+
+            // 2. Recopilar todas las URLs de las fotos de todos los items
+            $photoUrlsToDelete = [];
+            foreach ($order->items as $item) {
+                // Asegúrate de que customization_json y photo_urls existan y sean un array
+                $customizationData = $item->customization_json ?? []; // Usa un array vacío si es null
+                if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
+                    $photoUrlsToDelete = array_merge($photoUrlsToDelete, $customizationData['photo_urls']);
+                }
             }
+            $photoUrlsToDelete = array_unique($photoUrlsToDelete); // Evitar borrar lo mismo dos veces
+
+            // 3. Borrar cada foto de Supabase
+            if (!empty($photoUrlsToDelete)) {
+                $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/'); // Obtener la URL base del bucket
+                $pathsToDelete = [];
+
+                foreach ($photoUrlsToDelete as $url) {
+                    // Extraer el path relativo a partir de la URL completa
+                    if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
+                         // Elimina la URL base y el '/' inicial si existe
+                        $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
+                        if (!empty($path)) {
+                           $pathsToDelete[] = $path;
+                        }
+                    } else {
+                        Log::warning("No se pudo extraer el path de Supabase para la URL: " . $url);
+                    }
+                }
+
+                // Borrar los archivos en Supabase
+                if (!empty($pathsToDelete)) {
+                    Log::info('Borrando archivos de Supabase: ' . implode(', ', $pathsToDelete));
+                    try {
+                        Storage::disk('supabase')->delete($pathsToDelete);
+                    } catch (\Exception $e) {
+                         // Loguear error pero continuar
+                        Log::error("Error al borrar archivos de Supabase: " . $e->getMessage());
+                    }
+                }
+            }
+            // --- FIN: LÓGICA PARA BORRAR IMÁGENES DE SUPABASE ---
+
+            // 4. Borrar evento de Google Calendar (como antes, con try-catch mejorado)
+            if (! empty($order->google_event_id)) {
+                try {
+                    $this->googleCalendarService->deleteEvent($order->google_event_id);
+                } catch (\Exception $e) {
+                    // Loguear el error pero continuar, para que el pedido se borre igual
+                    Log::error("Error al borrar evento de Google Calendar {$order->google_event_id}: " . $e->getMessage());
+                }
+            }
+            
+            // 5. Borrar el pedido de la base de datos (como antes)
             $order->delete();
         });
 
