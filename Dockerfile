@@ -11,12 +11,15 @@ FROM php:8.3-apache
 # Paquetes + extensiones necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git unzip libzip-dev libpq-dev libicu-dev \
- && docker-php-ext-install pdo_pgsql intl zip \
- && a2enmod rewrite \
- && rm -rf /var/lib/apt/lists/*
+    && docker-php-ext-install pdo_pgsql intl zip \
+    && a2enmod rewrite \
+    && rm -rf /var/lib/apt/lists/*
 
 # Opcional: habilitar opcache
 RUN docker-php-ext-enable opcache || true
+
+# Copiamos nuestros límites de subida personalizados de PHP
+COPY uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
 WORKDIR /var/www/html
 
@@ -36,8 +39,8 @@ RUN mkdir -p \
     storage/framework/views \
     storage/logs \
     bootstrap/cache \
- && chown -R www-data:www-data storage bootstrap/cache \
- && chmod -R ug+rwX storage bootstrap/cache
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R ug+rwX storage bootstrap/cache
 
 # Script de arranque
 COPY start.sh /usr/local/bin/start.sh
