@@ -8,7 +8,7 @@ class Order extends Model
 {
     protected $fillable = [
         'client_id', 'event_date', 'start_time', 'end_time', 'status',
-        'total', 'deposit', 'notes', 'google_event_id',
+        'total', 'deposit', 'delivery_cost', 'notes', 'google_event_id',
     ];
 
     protected $casts = [
