@@ -73,4 +73,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:admin')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
     });
+
+    Route::get('/ping', function () {
+    return response()->json(['status' => 'ok']);
+});
 });
