@@ -111,7 +111,6 @@ class OrderController extends Controller
      */
     public function update(StoreOrderRequest $request, Order $order)
     {
-
         if (! Gate::allows('manage-orders')) {
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
@@ -119,32 +118,99 @@ class OrderController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $order) {
-            // 1) Actualizar cabecera SIN items ni total
+
+            // --- INICIO: LÓGICA PARA BORRAR IMÁGENES ANTIGUAS ---
+            // 1a. Obtener las URLs de las fotos ANTES de borrar los items
+            $oldPhotoUrls = [];
+            $order->load('items'); // Asegurarse de tener los items actuales cargados
+            foreach ($order->items as $item) {
+                $customizationData = $item->customization_json ?? [];
+                if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
+                    $oldPhotoUrls = array_merge($oldPhotoUrls, $customizationData['photo_urls']);
+                }
+            }
+            $oldPhotoUrls = array_unique($oldPhotoUrls);
+
+            // 1b. Obtener las URLs de las fotos NUEVAS (las que vienen en la petición)
+            $newPhotoUrls = [];
+            if (isset($validated['items']) && is_array($validated['items'])) {
+                foreach ($validated['items'] as $itemPayload) {
+                    $customizationData = $itemPayload['customization_json'] ?? [];
+                     if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
+                         $newPhotoUrls = array_merge($newPhotoUrls, $customizationData['photo_urls']);
+                     }
+                }
+            }
+            $newPhotoUrls = array_unique($newPhotoUrls);
+
+            // 1c. Calcular las URLs a borrar (las que están en old pero no en new)
+            $urlsToDelete = array_diff($oldPhotoUrls, $newPhotoUrls);
+            // --- FIN: LÓGICA PARA BORRAR IMÁGENES ANTIGUAS ---
+
+
+            // 2) Actualizar cabecera SIN items ni total
             $order->update(Arr::except($validated, ['items', 'total', 'deposit']));
 
-            // 2) Evitar violación del CHECK mientras total queda en 0
+            // 3) Evitar violación del CHECK mientras total queda en 0
             $originalDeposit = $validated['deposit'] ?? $order->deposit;
-            $order->deposit = 0;     // o null
+            $order->deposit = 0;      // o null
             $order->save();
 
-            // 3) Reemplazar ítems
-            $order->items()->delete();
-            foreach ($validated['items'] as $itemPayload) {
-                $order->items()->create($itemPayload);
+            // 4) Reemplazar ítems
+            $order->items()->delete(); // Borra los items viejos de la BD
+            if (isset($validated['items']) && is_array($validated['items'])) {
+                foreach ($validated['items'] as $itemPayload) {
+                    $order->items()->create($itemPayload); // Crea los nuevos items
+                }
             }
 
-            // 4) Recalcular total (si tenés método o dejás que lo haga el trigger)
+
+            // 5) Recalcular total (si tenés método o dejás que lo haga el trigger)
             // $order->recalculateTotals(); // si implementaste este método
             $order->refresh(); // tomar total actualizado por el trigger
 
-            // 5) Ajustar depósito final (nunca mayor al total)
+            // 6) Ajustar depósito final (nunca mayor al total)
             if ($originalDeposit !== null) {
                 $order->deposit = min((float) $originalDeposit, (float) $order->total);
                 $order->save();
             }
 
-            // 6) Sincronizar Calendar
-            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
+            // --- INICIO: BORRAR FOTOS HUÉRFANAS DE SUPABASE ---
+            if (!empty($urlsToDelete)) {
+                $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/');
+                $pathsToDelete = [];
+
+                foreach ($urlsToDelete as $url) {
+                    if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
+                        $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
+                        if (!empty($path)) {
+                            $pathsToDelete[] = $path;
+                        }
+                    } else {
+                        Log::warning("[Update Order {$order->id}] No se pudo extraer el path de Supabase para la URL a borrar: " . $url);
+                    }
+                }
+
+                if (!empty($pathsToDelete)) {
+                    Log::info("[Update Order {$order->id}] Borrando archivos huérfanos de Supabase: " . implode(', ', $pathsToDelete));
+                    try {
+                        Storage::disk('supabase')->delete($pathsToDelete);
+                    } catch (\Exception $e) {
+                        Log::error("[Update Order {$order->id}] Error al borrar archivos huérfanos de Supabase: " . $e->getMessage());
+                    }
+                }
+            }
+            // --- FIN: BORRAR FOTOS HUÉRFANAS DE SUPABASE ---
+
+
+            // 7) Sincronizar Calendar (con try-catch)
+            try {
+                $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
+            } catch (\Exception $e) {
+                 Log::error("Error al actualizar evento de Google Calendar para la orden {$order->id}: " . $e->getMessage());
+                 // No detenemos la transacción
+            }
+
         });
 
         return response()->json($order->load(['client', 'items']));
