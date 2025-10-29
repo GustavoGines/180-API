@@ -53,65 +53,62 @@ class OrderController extends Controller
             // 1. Calcular el total basado en los items recibidos y el costo de envío
             $itemsTotal = 0.0;
             foreach ($validated['items'] as $item) {
-                // Usamos los valores ya validados
-                 $itemsTotal += (float) $item['unit_price'] * (int) $item['qty'];
+                $qty = (int) $item['qty'];
+                $basePrice = (float) $item['base_price'];
+                // adjustments es 'nullable' en la request, si no existe usamos 0
+                $adjustments = (float) ($item['adjustments'] ?? 0); 
+                
+                $finalUnitPrice = $basePrice + $adjustments;
+            
+                $itemsTotal += $qty * $finalUnitPrice; // Suma usando el precio final calculado
             }
             $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
             $calculatedGrandTotal = $itemsTotal + $deliveryCost;
 
             // 2. Preparar datos de la orden principal
-            // Excluimos 'items' y 'deposit' temporalmente. Incluimos 'delivery_cost'.
             $orderData = Arr::except($validated, ['items', 'deposit']);
             $orderData['total'] = $calculatedGrandTotal; // Guardar el total calculado
             $orderData['deposit'] = 0; // Inicializar depósito en 0
 
-            // Si no se especifica un estado, por defecto es 'confirmed'
             $orderData['status'] = $validated['status'] ?? 'confirmed';
 
             // 3. Crear la orden (sin los items aún)
             $order = Order::create($orderData);
 
             // 4. Crear los items asociados a la orden
-            // Asegúrate que el modelo OrderItem tenga 'order_id', 'name', 'qty', 'unit_price', 'customization_json' como $fillable
-             if (!empty($validated['items'])) {
+            if (!empty($validated['items'])) {
                 // Mapear para asegurar que solo los campos correctos se pasen a createMany
                 $itemsData = array_map(function ($item) {
                     return [
                         'name' => $item['name'],
                         'qty' => $item['qty'],
-                        'unit_price' => $item['unit_price'],
-                         // Asegurarse de que customization_json sea un array o null
+                        'base_price' => $item['base_price'],        // ✅ BASE PRICE
+                        'adjustments' => $item['adjustments'] ?? 0, // ✅ ADJUSTMENTS
+                        'customization_notes' => $item['customization_notes'] ?? null, // ✅ NOTES
                         'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                               ? $item['customization_json']
-                                               : null,
+                                                ? $item['customization_json']
+                                                : null,
                     ];
                 }, $validated['items']);
                 $order->items()->createMany($itemsData);
             }
 
-            // --- NO NECESITAMOS REFRESH() PARA EL TRIGGER DEL TOTAL ---
-            // El $calculatedGrandTotal ya es nuestro total final.
-
             // 5. Ahora sí, actualiza la seña, asegurando que no sea mayor al total calculado
             $originalDeposit = (float) ($validated['deposit'] ?? 0);
-            // Usamos min() por si acaso, aunque la validación ya lo chequeó
             $order->deposit = min($originalDeposit, $calculatedGrandTotal);
 
             // 6. Crear evento en Google Calendar y guardar el ID (con try-catch)
             try {
-                // Pasamos la orden fresca con sus relaciones cargadas
                 $googleEventId = $this->googleCalendarService->createFromOrder($order->fresh(['client', 'items']));
                 $order->google_event_id = $googleEventId;
             } catch (\Exception $e) {
                 Log::error("Error al crear evento de Google Calendar para la orden (nueva) {$order->id}: " . $e->getMessage());
-                // No detenemos la transacción, solo logueamos. El google_event_id quedará null.
             }
 
             // 7. Guarda la orden por última vez con la seña y el ID del evento correctos
             $order->save();
         });
 
-        // Devolver la orden completa, cargando relaciones por si acaso
         return response()->json($order->load(['client', 'items']), Response::HTTP_CREATED);
     }
 
@@ -155,7 +152,7 @@ class OrderController extends Controller
                  foreach ($validated['items'] as $itemPayload) {
                      $customizationData = $itemPayload['customization_json'] ?? [];
                       if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
-                          $newPhotoUrls = array_merge($newPhotoUrls, $customizationData['photo_urls']);
+                           $newPhotoUrls = array_merge($newPhotoUrls, $customizationData['photo_urls']);
                       }
                  }
              }
@@ -168,7 +165,13 @@ class OrderController extends Controller
             $newItemsTotal = 0.0;
              if (isset($validated['items']) && is_array($validated['items'])) {
                  foreach ($validated['items'] as $item) {
-                     $newItemsTotal += (float) $item['unit_price'] * (int) $item['qty'];
+                      // 👇 ACTUALIZADO: Usar base_price + adjustments para el cálculo
+                      $qty = (int) $item['qty'];
+                      $basePrice = (float) $item['base_price'];
+                      $adjustments = (float) ($item['adjustments'] ?? 0); 
+                      $finalUnitPrice = $basePrice + $adjustments;
+
+                      $newItemsTotal += $qty * $finalUnitPrice;
                  }
              }
             $newDeliveryCost = (float) ($validated['delivery_cost'] ?? 0);
@@ -177,45 +180,41 @@ class OrderController extends Controller
             // 2. Actualizar datos principales de la orden (excluyendo items y deposit)
              $orderData = Arr::except($validated, ['items', 'deposit']);
              $orderData['total'] = $newCalculatedGrandTotal; // Guardar el NUEVO total calculado
-             // $orderData['deposit'] = 0; // Reiniciar depósito temporalmente? O manejarlo después? Mejor después.
              $order->update($orderData); // Actualizar campos principales
-
-            // --- NO NECESITAMOS REINICIAR DEPÓSITO A 0 SI LO MANEJAMOS AL FINAL ---
 
             // 3. Reemplazar ítems
             $order->items()->delete(); // Borra los items viejos de la BD
-            if (isset($validated['items']) && is_array($validated['items'])) {
+             if (isset($validated['items']) && is_array($validated['items'])) {
                  $itemsData = array_map(function ($item) {
-                     return [
-                         'name' => $item['name'],
-                         'qty' => $item['qty'],
-                         'unit_price' => $item['unit_price'],
-                         'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                                ? $item['customization_json']
-                                                : null,
-                     ];
+                      return [
+                           'name' => $item['name'],
+                           'qty' => $item['qty'],
+                           'base_price' => $item['base_price'],        // ✅ BASE PRICE
+                           'adjustments' => $item['adjustments'] ?? 0, // ✅ ADJUSTMENTS
+                           'customization_notes' => $item['customization_notes'] ?? null, // ✅ NOTES
+                           'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
+                                                 ? $item['customization_json']
+                                                 : null,
+                      ];
                  }, $validated['items']);
-                $order->items()->createMany($itemsData); // Crea los nuevos items
-            }
-
-            // --- NO NECESITAMOS REFRESH() PARA EL TRIGGER DEL TOTAL ---
+                 $order->items()->createMany($itemsData); // Crea los nuevos items
+             }
 
             // 4. Ajustar depósito final (nunca mayor al NUEVO total)
             $newDeposit = (float) ($validated['deposit'] ?? 0); // Usar el depósito que viene en la request
             $order->deposit = min($newDeposit, $newCalculatedGrandTotal);
-            // $order->save(); // No es necesario save() aquí si update() ya lo hizo o si hacemos save() al final
-
-            // --- INICIO: BORRAR FOTOS HUÉRFANAS DE SUPABASE (Sin cambios, pero con save() al final) ---
+            
+            // --- INICIO: BORRAR FOTOS HUÉRFANAS DE SUPABASE (Sin cambios) ---
             if (!empty($urlsToDelete)) {
                 $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/');
                 $pathsToDelete = [];
                 foreach ($urlsToDelete as $url) {
-                    if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
-                        $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
-                        if (!empty($path)) $pathsToDelete[] = $path;
-                    } else {
-                        Log::warning("[Update Order {$order->id}] URL huérfana no reconocida: " . $url);
-                    }
+                     if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
+                         $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
+                         if (!empty($path)) $pathsToDelete[] = $path;
+                     } else {
+                         Log::warning("[Update Order {$order->id}] URL huérfana no reconocida: " . $url);
+                     }
                 }
                 if (!empty($pathsToDelete)) {
                     Log::info("[Update Order {$order->id}] Borrando archivos huérfanos: " . implode(', ', $pathsToDelete));
@@ -229,20 +228,18 @@ class OrderController extends Controller
             // --- FIN: BORRAR FOTOS HUÉRFANAS ---
 
             // 5. Guardar todos los cambios acumulados (incluido el depósito ajustado)
-             $order->save();
+            $order->save();
 
 
             // 6. Sincronizar Calendar (con try-catch)
             try {
-                // Usar fresh() para asegurar que Google Calendar recibe los items recién creados
                 $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
             } catch (\Exception $e) {
-                 Log::error("Error al actualizar evento GC para orden {$order->id}: " . $e->getMessage());
+                Log::error("Error al actualizar evento GC para orden {$order->id}: " . $e->getMessage());
             }
 
         });
 
-        // Devolver la orden actualizada con sus relaciones
         return response()->json($order->load(['client', 'items']));
     }
 
@@ -256,7 +253,6 @@ class OrderController extends Controller
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
 
-        // Validación más específica para este endpoint
         $validated = $request->validate([
             'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:confirmed,ready,delivered,canceled'],
             'is_fully_paid' => ['sometimes', 'required_without:status', 'boolean', 'accepted'], // 'accepted' significa que debe ser true si se envía
@@ -272,22 +268,17 @@ class OrderController extends Controller
 
         // 4. Lógica para marcar como pagado (is_fully_paid debe ser true si se envió)
         if (isset($validated['is_fully_paid']) && $validated['is_fully_paid'] === true) {
-            // Asegurarse de que el total sea un número antes de asignarlo
             if (is_numeric($order->total)) {
                  $order->deposit = $order->total;
                  $updated = true;
             } else {
                  Log::error("Intento de marcar como pagada la orden {$order->id} pero el total no es numérico ({$order->total})");
-                 // Considera devolver un error aquí si esto no debería pasar
-                 // abort(400, 'El total del pedido no es válido.');
             }
         }
 
         // 5. Guardar los cambios solo si hubo alguno
         if ($updated) {
             $order->save();
-             // Considera sincronizar Google Calendar aquí también si el estado o pago afecta el evento
-             // try { $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items'])); } catch (\Exception $e) { ... }
         }
 
         // 6. Devolver la orden actualizada
@@ -305,10 +296,8 @@ class OrderController extends Controller
         ]);
 
         try {
-            // Usar store() para generar nombre único automáticamente
             $path = $request->file('photo')->store('order-photos', 'supabase');
 
-            // Verificar si se guardó correctamente
             if (!$path) {
                  throw new \Exception("Supabase storage returned an empty path.");
             }
@@ -318,8 +307,7 @@ class OrderController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error("Error al subir foto a Supabase: " . $e->getMessage());
-            // Devolver un error más informativo al frontend
-             return response()->json(['message' => 'Error al subir la imagen al servidor.'], 500);
+            return response()->json(['message' => 'Error al subir la imagen al servidor.'], 500);
         }
     }
 
@@ -350,11 +338,11 @@ class OrderController extends Controller
                 $pathsToDelete = [];
                 foreach ($photoUrlsToDelete as $url) {
                      if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
-                        $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
-                        if (!empty($path)) $pathsToDelete[] = $path;
-                    } else {
-                        Log::warning("[Destroy Order {$order->id}] URL Supabase no reconocida: " . $url);
-                    }
+                         $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
+                         if (!empty($path)) $pathsToDelete[] = $path;
+                     } else {
+                         Log::warning("[Destroy Order {$order->id}] URL Supabase no reconocida: " . $url);
+                     }
                 }
                 if (!empty($pathsToDelete)) {
                     Log::info("[Destroy Order {$order->id}] Borrando de Supabase: " . implode(', ', $pathsToDelete));
@@ -380,7 +368,6 @@ class OrderController extends Controller
             $order->delete();
         });
 
-        // Éxito, sin contenido que devolver
         return response()->noContent();
     }
 }

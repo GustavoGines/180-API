@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB; // Asegúrate de que esta línea esté al inicio
 
 return new class extends Migration
 {
@@ -12,25 +13,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            // Add new columns for detailed pricing
-            // 'after' places the columns nicely in the table structure
-            $table->decimal('base_price', 10, 2)->after('unit_price')->default(0.00); // Precio base (puede ser por kg, unidad, etc.)
-            $table->decimal('adjustments', 10, 2)->after('base_price')->default(0.00); // Ajustes (+/-) sobre el precio base
-            $table->text('customization_notes')->after('adjustments')->nullable(); // Notas que explican el ajuste
-
-            // Make original unit_price nullable (optional but recommended for transition)
-            // You might need to install doctrine/dbal: composer require doctrine/dbal
-            $table->decimal('unit_price', 10, 2)->nullable()->change();
+            // 1. Añadir nuevas columnas
+            $table->decimal('base_price', 10, 2)->after('unit_price')->default(0.00);
+            $table->decimal('adjustments', 10, 2)->after('base_price')->default(0.00);
+            $table->text('customization_notes')->after('adjustments')->nullable();
         });
 
-        // --- Data Migration (Optional but Recommended) ---
-        // If you want to populate the new fields based on existing unit_price
-        // Assuming unit_price previously held the final price
-         DB::table('order_items')->whereNotNull('unit_price')->update([
-             'base_price' => DB::raw('unit_price'), // Set base_price to the old unit_price initially
-             'adjustments' => 0.00                  // Assume zero adjustments for old data
-         ]);
-        // --- End Data Migration ---
+        // 2. Migración de datos (Transferir el precio final antiguo a base_price)
+        DB::table('order_items')->whereNotNull('unit_price')->update([
+            'base_price' => DB::raw('unit_price'), // El precio que existía se convierte en el precio base
+            'adjustments' => 0.00                 // Los ajustes inician en cero
+        ]);
+
+        Schema::table('order_items', function (Blueprint $table) {
+            // 3. Eliminar la columna antigua 'unit_price'
+            // Ya no la necesitamos, y esto simplifica la base de datos.
+            $table->dropColumn('unit_price'); 
+        });
     }
 
     /**
@@ -38,15 +37,24 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // En caso de rollback, restaurar la columna 'unit_price' como si fuera 'base_price'
         Schema::table('order_items', function (Blueprint $table) {
-            // Drop the new columns if rolling back
+            // 1. Restaurar 'unit_price' (con los datos que estaban en 'base_price')
+            $table->decimal('unit_price', 10, 2)->after('id')->nullable(false)->default(0.00); 
+            
+            // 2. Intentar mover los datos de base_price a unit_price (solo si no es un fresh migration)
+            if (Schema::hasColumn('order_items', 'base_price')) {
+                 DB::table('order_items')->update([
+                    'unit_price' => DB::raw('base_price')
+                 ]);
+            }
+        });
+
+        Schema::table('order_items', function (Blueprint $table) {
+            // 3. Eliminar las nuevas columnas
             $table->dropColumn('base_price');
             $table->dropColumn('adjustments');
             $table->dropColumn('customization_notes');
-
-            // Revert unit_price back to not nullable if needed
-            // Be careful if you have existing null data after running 'up'
-            $table->decimal('unit_price', 10, 2)->nullable(false)->change();
         });
     }
 };
