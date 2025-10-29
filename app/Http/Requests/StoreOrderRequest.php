@@ -51,6 +51,8 @@ class StoreOrderRequest extends FormRequest
             // Optional: More specific validation for customization_json
              'items.*.customization_json.weight_kg' => ['nullable', 'numeric', 'min:0'],
              'items.*.customization_json.selected_fillings' => ['nullable', 'array'],
+             'items.*.customization_json.calculated_final_unit_price' => ['nullable', 'numeric', 'min:0'],
+             'items.*.customization_json.photo_urls' => ['nullable', 'array'],
         ];
     }
 
