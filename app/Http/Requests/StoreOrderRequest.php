@@ -26,27 +26,31 @@ class StoreOrderRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'exists:clients,id'],
-            'event_date' => ['required', 'date_format:Y-m-d'], // Asegurar formato YYYY-MM-DD
-
-            // Horarios opcionales (H:i). La validación end > start se hace en withValidator
+            'event_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
-
             'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
-            // 'total' => ['nullable', 'numeric', 'min:0'], // <-- ELIMINADO: Ya no se envía, se calcula en el backend
             'deposit' => ['nullable', 'numeric', 'min:0'],
-            'delivery_cost' => ['nullable', 'numeric', 'min:0'], // <-- NUEVO: Costo de envío
+            'delivery_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.name' => ['required', 'string', 'max:191'], // Max 191 suele ser más seguro para utf8mb4
+            'items.*.id' => ['nullable', 'integer', 'exists:order_items,id'], // Allow ID for updates
+            'items.*.name' => ['required', 'string', 'max:191'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
-            // unit_price ahora es el precio *calculado* por Flutter para ese item (puede ser por kg, por tamaño, etc.)
-            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
-            // customization_json es clave ahora, contiene los detalles
+
+            // --- VALIDATION FOR NEW PRICE FIELDS ---
+            'items.*.base_price' => ['required', 'numeric', 'min:0'],
+            'items.*.adjustments' => ['nullable', 'numeric'], // Allows negative
+            'items.*.customization_notes' => ['nullable', 'string'],
+            // --- END VALIDATION ---
+
+            // 'items.*.unit_price' => ['required', 'numeric', 'min:0'], // <-- REMOVED or make nullable if needed for backward compatibility
+
             'items.*.customization_json' => ['nullable', 'array'],
-            // Podríamos añadir validaciones más específicas para customization_json si fuera necesario
-            // ej: 'items.*.customization_json.weight_kg' => ['required_if:items.*.customization_json.product_category,torta', 'numeric', 'min:0']
+            // Optional: More specific validation for customization_json
+             'items.*.customization_json.weight_kg' => ['nullable', 'numeric', 'min:0'],
+             'items.*.customization_json.selected_fillings' => ['nullable', 'array'],
         ];
     }
 
@@ -59,12 +63,10 @@ class StoreOrderRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v) {
-            // 1) Validación de horario: end_time > start_time (sin cambios)
+            // 1) End time > Start time validation (No change)
             $start = $this->input('start_time');
             $end = $this->input('end_time');
-
             if ($start && $end) {
-                // Convertir a objetos DateTime para comparación segura
                 $startTime = \DateTime::createFromFormat('H:i', $start);
                 $endTime = \DateTime::createFromFormat('H:i', $end);
                 if ($startTime && $endTime && $endTime <= $startTime) {
@@ -72,49 +74,56 @@ class StoreOrderRequest extends FormRequest
                 }
             }
 
-
-            // 2) Validación de depósito: no puede ser mayor al NUEVO total (items + delivery_cost)
+            // 2) Deposit validation vs calculated total (UPDATED)
             $items = $this->input('items', []);
-            $deliveryCost = (float) ($this->input('delivery_cost') ?? 0); // Obtener costo envío
+            $deliveryCost = (float) ($this->input('delivery_cost') ?? 0);
 
             if (is_array($items) && ! empty($items)) {
                 $calculatedItemsTotal = 0.0;
 
-                foreach ($items as $item) {
-                    // Validar que los datos del item sean numéricos antes de usarlos
+                foreach ($items as $key => $item) {
+                    // Validate required numeric fields for calculation
                     $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
-                    $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) ? (float) $item['unit_price'] : 0.0;
+                    // 👇 Use base_price and adjustments for calculation
+                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0; // Use -1 to detect missing/invalid
+                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0; // Default adjustments to 0 if missing/invalid
 
-                     // Asegurarse de que qty y unitPrice sean válidos para evitar errores
-                    if ($qty > 0 && $unitPrice >= 0) {
-                         $calculatedItemsTotal += $qty * $unitPrice;
-                    } else {
-                         // Si un item tiene datos inválidos, añadir error y detener validación de depósito
-                         $v->errors()->add('items', 'Uno o más ítems tienen cantidad o precio inválido.');
-                         return; // Salir de la función after
+                    // Check if base price is valid
+                    if ($qty <= 0 || $basePrice < 0) {
+                         $v->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
+                         // Don't 'return' here, let it check all items first
+                         continue; // Skip to next item
                     }
 
+                    // Calculate final unit price for this item
+                    $finalUnitPrice = $basePrice + $adjustments;
+
+                    // Ensure final unit price is not negative (unless explicitly allowed?)
+                    if ($finalUnitPrice < 0) {
+                         $v->errors()->add("items.$key", 'El precio final del ítem (base + ajuste) no puede ser negativo.');
+                         continue;
+                    }
+
+                    $calculatedItemsTotal += $qty * $finalUnitPrice; // Sum using final price
                 }
 
-                // Calcular el total general incluyendo el envío
-                $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
+                 // Only proceed with deposit validation if there were no item errors above
+                 if (! $v->errors()->has('items.*')) {
+                    $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
+                    $deposit = (float) ($this->input('deposit') ?? 0);
+                    $epsilon = 0.01;
 
-                $deposit = (float) ($this->input('deposit') ?? 0);
-
-                // Comparar depósito con el total general
-                // Usar una pequeña tolerancia (epsilon) para comparaciones de flotantes
-                $epsilon = 0.01;
-                if ($deposit > ($calculatedGrandTotal + $epsilon)) {
-                    $v->errors()->add(
-                        'deposit',
-                        'El depósito (\$'.number_format($deposit, 0, ',', '.').') no puede ser mayor al total del pedido (\$'.number_format($calculatedGrandTotal, 0, ',', '.').').'
-                    );
+                    if ($deposit > ($calculatedGrandTotal + $epsilon)) {
+                        $v->errors()->add(
+                            'deposit',
+                            'El depósito (\$'.number_format($deposit, 0, ',', '.').') no puede ser mayor al total del pedido (\$'.number_format($calculatedGrandTotal, 0, ',', '.').').'
+                        );
+                    }
                 }
+
             } elseif ($this->input('deposit') > 0) {
-                 // Si no hay items pero se envió un depósito > 0, es un error
-                  $v->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos en el pedido.');
+                 $v->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos en el pedido.');
             }
-
         });
     }
 
@@ -126,41 +135,24 @@ class StoreOrderRequest extends FormRequest
      */
     protected function prepareForValidation()
     {
-        // Si la fecha viene en otro formato (ej. dd/MM/yyyy), conviértela a Y-m-d
-        if ($this->has('event_date')) {
-            try {
-                // Intenta parsear como Y-m-d primero (formato estándar)
-                \DateTime::createFromFormat('Y-m-d', $this->event_date);
-            } catch (\Exception $e) {
-                 // Si falla, intenta parsear como d/m/Y (formato común de input)
-                 try {
-                     $date = \DateTime::createFromFormat('d/m/Y', $this->event_date);
-                     if ($date) {
-                         $this->merge(['event_date' => $date->format('Y-m-d')]);
-                     }
-                 } catch (\Exception $e2) {
-                     // Si ambos fallan, la validación 'date_format:Y-m-d' fallará
-                 }
-            }
-        }
+        // Keep your existing date/time/number cleaning logic if Flutter sends them formatted.
+        // If Flutter sends clean numbers (like 15000.00), you might not need the number cleaning.
 
-       // Limpiar números (quitar separadores de miles, reemplazar coma decimal)
-        if ($this->has('deposit')) {
-            $this->merge(['deposit' => str_replace(',', '.', preg_replace('/[^\d,]/', '', $this->deposit))]);
-        }
-        if ($this->has('delivery_cost')) {
-            $this->merge(['delivery_cost' => str_replace(',', '.', preg_replace('/[^\d,]/', '', $this->delivery_cost))]);
-        }
-         // Limpiar unit_price en items
-         if ($this->has('items') && is_array($this->items)) {
-             $cleanedItems = [];
-             foreach ($this->items as $key => $item) {
-                 if (isset($item['unit_price'])) {
-                     $item['unit_price'] = str_replace(',', '.', preg_replace('/[^\d,]/', '', (string)$item['unit_price']));
+        // Example: Clean base_price and adjustments in items if needed
+        if ($this->has('items') && is_array($this->items)) {
+            $cleanedItems = [];
+            foreach ($this->items as $key => $item) {
+                 if (isset($item['base_price'])) {
+                     $item['base_price'] = str_replace(',', '.', preg_replace('/[^\d,\-]/', '', (string)$item['base_price']));
                  }
+                 if (isset($item['adjustments'])) {
+                     // Allow negative sign for adjustments
+                     $item['adjustments'] = str_replace(',', '.', preg_replace('/[^\d,\-]/', '', (string)$item['adjustments']));
+                 }
+                 // Keep cleaning for deposit, delivery_cost, etc. if necessary
                  $cleanedItems[$key] = $item;
-             }
-             $this->merge(['items' => $cleanedItems]);
-         }
+            }
+            $this->merge(['items' => $cleanedItems]);
+        }
     }
 }
