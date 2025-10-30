@@ -21,12 +21,16 @@ class ClientController extends Controller
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 // Para PostgreSQL usamos ILIKE (case-insensitive)
-                $like = '%'.str_replace('%', '\%', $searchQuery).'%';
-                $builder->where(function ($subquery) use ($like) {
-                    $subquery->whereRaw('name ILIKE ?', [$like])
-                        ->orWhereRaw('phone ILIKE ?', [$like])
-                        ->orWhereRaw('email ILIKE ?', [$like]);
-                });
+                // 'LIKE' es universal (MySQL, PostgreSQL, etc.)
+            // Escapamos los caracteres especiales para la búsqueda
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';
+            
+            // Usamos LOWER() para que la búsqueda sea case-insensitive en todas las bases de datos
+            $builder->where(function ($subquery) use ($like) {
+                $subquery->whereRaw('LOWER(name) LIKE ?', [strtolower($like)])
+                    ->orWhereRaw('LOWER(phone) LIKE ?', [strtolower($like)])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [strtolower($like)]);
+            });
             })
             ->orderBy('name')
             ->paginate(20);
