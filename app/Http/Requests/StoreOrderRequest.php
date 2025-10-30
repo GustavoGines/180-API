@@ -137,22 +137,21 @@ class StoreOrderRequest extends FormRequest
      */
     protected function prepareForValidation()
     {
-        // Keep your existing date/time/number cleaning logic if Flutter sends them formatted.
-        // If Flutter sends clean numbers (like 15000.00), you might not need the number cleaning.
-
-        // Example: Clean base_price and adjustments in items if needed
         if ($this->has('items') && is_array($this->items)) {
             $cleanedItems = [];
-            foreach ($this->items as $key => $item) {
-                 if (isset($item['base_price'])) {
-                     $item['base_price'] = str_replace(',', '.', preg_replace('/[^\d,\-]/', '', (string)$item['base_price']));
-                 }
-                 if (isset($item['adjustments'])) {
-                     // Allow negative sign for adjustments
-                     $item['adjustments'] = str_replace(',', '.', preg_replace('/[^\d,\-]/', '', (string)$item['adjustments']));
-                 }
-                 // Keep cleaning for deposit, delivery_cost, etc. if necessary
-                 $cleanedItems[$key] = $item;
+            foreach ($this->items as $item) {
+                // limpiar precios
+                foreach (['base_price','adjustments'] as $f) {
+                    if (isset($item[$f])) {
+                        $item[$f] = str_replace(',', '.', preg_replace('/[^\d\-,.]/', '', (string)$item[$f]));
+                    }
+                }
+                // eliminar campos calculados del json si llegan
+                if (isset($item['customization_json']) && is_array($item['customization_json'])) {
+                    unset($item['customization_json']['calculated_final_unit_price']);
+                    unset($item['customization_json']['calculated_base_price']);
+                }
+                $cleanedItems[] = $item;
             }
             $this->merge(['items' => $cleanedItems]);
         }

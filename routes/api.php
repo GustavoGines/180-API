@@ -51,9 +51,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', fn() => auth()->user());
 
     // --- Clientes ---
+    Route::get('/clients/trashed', [ClientController::class, 'trashed']);
     Route::get('/clients', [ClientController::class, 'index']);
     Route::post('/clients', [ClientController::class, 'store']);
+    Route::get('/clients/{client}', [ClientController::class, 'show']);
+    Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
     Route::put('/clients/{client}', [ClientController::class, 'update']);
+    Route::post('/clients/{id}/restore', [ClientController::class, 'restore']);
 
     // --- Pedidos ---
     Route::get('/orders', [OrderController::class, 'index']);

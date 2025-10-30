@@ -7,6 +7,7 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
+
 class ClientController extends Controller
 {
     /**
@@ -40,18 +41,42 @@ class ClientController extends Controller
     public function store(StoreClientRequest $request)
     {
         $validated = $request->validated();
+        $name = $validated['name'];
 
+        // 1. Revisa si un cliente con ese nombre EXISTE, INCLUSO SI ESTÁ BORRADO
+        $existingClient = Client::withTrashed() 
+            ->where('name', $name)
+            // ->orWhere('email', $validated['email']) // Opcional: chequear email también
+            ->first();
+
+        if ($existingClient) {
+            // 2. Si existe Y ESTÁ BORRADO...
+            if ($existingClient->trashed()) {
+                // Devolvemos un error 409 (Conflicto) con los datos del cliente
+                // para que la app pueda ofrecer restaurarlo.
+                return response()->json([
+                    'message' => 'Un cliente con este nombre ya existe en la papelera.',
+                    'client' => $existingClient // Enviamos el cliente para restaurar
+                ], Response::HTTP_CONFLICT); // 409
+            } else {
+                // 3. Si existe y NO está borrado, es un duplicado simple.
+                return response()->json([
+                    'message' => 'Un cliente con este nombre ya existe.'
+                ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
+            }
+        }
+
+        // 4. Si no existe, lo creamos.
         $client = Client::create($validated);
-
-        return response()->json($client, Response::HTTP_CREATED);
+        return response()->json(['data' => $client], Response::HTTP_CREATED);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Client $client)
     {
-        //
+        return response()->json(['data' => $client]);
     }
 
     /**
@@ -64,14 +89,53 @@ class ClientController extends Controller
 
         $client->update($validated);
 
-        return response()->json($client->fresh());
+        return response()->json(['data' => $client->fresh()]);;
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Client $client) // 👈 MODIFICA ESTE MÉTODO
     {
-        //
+        // Aquí podrías añadir validaciones (ej. no borrar si tiene pedidos)
+        // if ($client->orders()->exists()) {
+        //     return response()->json(['message' => 'No se puede eliminar un cliente con pedidos asociados.'], 409); // 409 Conflict
+        // }
+
+        $client->delete();
+
+        // 204 No Content es la respuesta estándar para un DELETE exitoso
+        return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * GET /api/clients/trashed
+     * Muestra una lista de clientes en la papelera.
+     */
+    public function trashed()
+    {
+        // Busca solo los clientes que están en la papelera
+        $trashedClients = Client::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
+        return response()->json(['data' => $trashedClients]);
+    }
+
+    /**
+     * POST /api/clients/{id}/restore
+     * Restaura un cliente desde la papelera.
+     */
+    public function restore($id) // No usamos Route-Model binding para poder buscar en borrados
+    {
+        $client = Client::withTrashed()->find($id);
+
+        if (!$client) {
+            return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND); // 404
+        }
+
+        if (!$client->trashed()) {
+            return response()->json(['message' => 'El cliente no está eliminado'], Response::HTTP_BAD_REQUEST); // 400
+        }
+
+        $client->restore();
+        return response()->json(['data' => $client]); // Devuelve el cliente restaurado
     }
 }
