@@ -58,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
     Route::put('/clients/{client}', [ClientController::class, 'update']);
     Route::post('/clients/{id}/restore', [ClientController::class, 'restore']);
+    Route::delete('/clients/{id}/force', [ClientController::class, 'forceDelete']);
 
     // --- Pedidos ---
     Route::get('/orders', [OrderController::class, 'index']);

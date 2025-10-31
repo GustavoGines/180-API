@@ -24,13 +24,15 @@ class ClientController extends Controller
                 // 'LIKE' es universal (MySQL, PostgreSQL, etc.)
             // Escapamos los caracteres especiales para la búsqueda
             $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';
-            
-            // Usamos LOWER() para que la búsqueda sea case-insensitive en todas las bases de datos
-            $builder->where(function ($subquery) use ($like) {
-                $subquery->whereRaw('LOWER(name) LIKE ?', [strtolower($like)])
-                    ->orWhereRaw('LOWER(phone) LIKE ?', [strtolower($like)])
-                    ->orWhereRaw('LOWER(email) LIKE ?', [strtolower($like)]);
-            });
+            // Escapamos los caracteres
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';
+                
+                // Usamos unaccent() para ignorar tildes E ILIKE para ignorar mayúsculas
+                $builder->where(function ($subquery) use ($like) {
+                    $subquery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$like])
+                        ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$like])
+                        ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$like]);
+                });
             })
             ->orderBy('name')
             ->paginate(20);
@@ -45,33 +47,32 @@ class ClientController extends Controller
     public function store(StoreClientRequest $request)
     {
         $validated = $request->validated();
-        $name = $validated['name'];
+        // 1. NORMALIZA: Quita espacios al inicio/final
+        $name = trim($validated['name']);
 
-        // 1. Revisa si un cliente con ese nombre EXISTE, INCLUSO SI ESTÁ BORRADO
-        $existingClient = Client::withTrashed() 
-            ->where('name', $name)
-            // ->orWhere('email', $validated['email']) // Opcional: chequear email también
+        // 2. COMPARA: Revisa si existe usando unaccent() y LOWER()
+        $existingClient = Client::withTrashed()
+            ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
             ->first();
 
         if ($existingClient) {
-            // 2. Si existe Y ESTÁ BORRADO...
+            // ... (Tu lógica de 409 y 422 para restaurar o avisar de duplicado está perfecta)
             if ($existingClient->trashed()) {
-                // Devolvemos un error 409 (Conflicto) con los datos del cliente
-                // para que la app pueda ofrecer restaurarlo.
                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe en la papelera.',
-                    'client' => $existingClient // Enviamos el cliente para restaurar
+                    'client' => $existingClient
                 ], Response::HTTP_CONFLICT); // 409
             } else {
-                // 3. Si existe y NO está borrado, es un duplicado simple.
                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe.'
                 ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
             }
         }
 
-        // 4. Si no existe, lo creamos.
+        // 4. CREA: Usa el nombre ya "trimeado"
+        $validated['name'] = $name; 
         $client = Client::create($validated);
+        
         return response()->json(['data' => $client], Response::HTTP_CREATED);
     }
 
@@ -141,5 +142,32 @@ class ClientController extends Controller
 
         $client->restore();
         return response()->json(['data' => $client]); // Devuelve el cliente restaurado
+    }
+
+    /**
+     * DELETE /api/clients/{id}/force-delete
+     * Elimina permanentemente un cliente de la base de datos.
+     */
+    public function forceDelete($id)
+    {
+        // 1. Buscamos al cliente INCLUYENDO los de la papelera
+        $client = Client::withTrashed()->find($id);
+
+        if (!$client) {
+            return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND);
+        }
+
+        // 2. ¡MUY IMPORTANTE! Revalidar que no tenga pedidos.
+        // NO DEBERÍAS borrar permanentemente un cliente con historial de ventas.
+        if ($client->orders()->exists()) {
+            return response()->json([
+                'message' => '¡Conflicto! Este cliente tiene pedidos asociados y no puede ser eliminado permanentemente.'
+            ], Response::HTTP_CONFLICT); // 409
+        }
+
+        // 3. Si no tiene pedidos, ahora sí, borrado físico.
+        $client->forceDelete();
+
+        return response()->json(null, Response::HTTP_NO_CONTENT);
     }
 }
