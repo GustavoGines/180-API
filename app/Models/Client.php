@@ -20,4 +20,30 @@ class Client extends Model
     }
 
     protected $dates = ['deleted_at'];
+
+    /**
+     * Define qué campos extra debe añadir el modelo al convertir a JSON.
+     */
+    protected $appends = [
+        'whatsapp_url'
+    ];
+
+    /**
+     * Crea un atributo "whatsapp_url" que no existe en la BD.
+     */
+    public function getWhatsappUrlAttribute(): ?string
+    {
+        if (empty($this->phone)) {
+            return null;
+        }
+
+        // 1. Limpia el número
+        $sanitizedPhone = preg_replace('/[^0-9]/', '', $this->phone);
+        
+        // 2. Añade el prefijo 549
+        $whatsappNumber = '549' . $sanitizedPhone;
+
+        // 3. Retorna la URL completa
+        return 'https://wa.me/' . $whatsappNumber;
+    }
 }
