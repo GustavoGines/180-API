@@ -22,11 +22,8 @@ class ClientController extends Controller
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 // Para PostgreSQL usamos ILIKE (case-insensitive)
                 // 'LIKE' es universal (MySQL, PostgreSQL, etc.)
-            // Escapamos los caracteres especiales para la búsqueda
-            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';
-            // Escapamos los caracteres
-                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';
-                
+                // Escapamos los caracteres
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';                
                 // Usamos unaccent() para ignorar tildes E ILIKE para ignorar mayúsculas
                 $builder->where(function ($subquery) use ($like) {
                     $subquery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$like])
