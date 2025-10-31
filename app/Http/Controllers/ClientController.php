@@ -88,10 +88,37 @@ class ClientController extends Controller
     public function update(StoreClientRequest $request, Client $client)
     {
         $validated = $request->validated();
+        
+        // 1. NORMALIZA: Quita espacios al inicio/final
+        $name = trim($validated['name']);
 
+        // 2. COMPARA: Revisa si existe usando unaccent() y LOWER()
+        $existingClient = Client::withTrashed()
+            ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
+            // ¡Esta es la condición clave para UPDATE!
+            // Solo busca conflictos si el ID encontrado es DIFERENTE al actual
+            ->where('id', '!=', $client->id) 
+            ->first();
+
+        // 3. MANEJA CONFLICTOS (Idéntico a store)
+        if ($existingClient) {
+            if ($existingClient->trashed()) {
+                return response()->json([
+                    'message' => 'Otro cliente con este nombre ya existe en la papelera.',
+                    'client' => $existingClient
+                ], Response::HTTP_CONFLICT); // 409
+            } else {
+                return response()->json([
+                    'message' => 'Otro cliente con este nombre ya existe.'
+                ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
+            }
+        }
+
+        // 4. ACTUALIZA: Usa el nombre ya "trimeado"
+        $validated['name'] = $name; 
         $client->update($validated);
 
-        return response()->json(['data' => $client->fresh()]);;
+        return response()->json(['data' => $client->fresh()]);
     }
 
     /**

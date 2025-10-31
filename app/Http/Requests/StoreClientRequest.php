@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule; // 👈 1. Importar la clase Rule
 
 class StoreClientRequest extends FormRequest
 {
@@ -21,10 +22,29 @@ class StoreClientRequest extends FormRequest
      */
     public function rules(): array
     {
+        // 2. Obtenemos el cliente de la ruta (será null en 'store', 
+        //    y será el objeto Client en 'update')
+        $client = $this->route('client');
+
         return [
             'name' => ['required', 'string', 'max:120'],
-            'phone' => ['nullable', 'string', 'max:40'],
-            'email' => ['nullable', 'email'],
+            
+            'phone' => [
+                'nullable', 
+                'string', 
+                'max:40',
+                // 3. Regla unique:
+                // "Debe ser único en la tabla 'clients', 
+                //  PERO ignora el ID del cliente que estamos actualizando"
+                Rule::unique('clients')->ignore($client?->id),
+            ],
+            
+            'email' => [
+                'nullable', 
+                'email',
+                Rule::unique('clients')->ignore($client?->id),
+            ],
+
             'ig_handle' => ['nullable', 'string', 'max:80'],
             'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
