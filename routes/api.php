@@ -52,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', fn() => auth()->user());
 
     // --- Clientes ---
-    Route::get('/clients/trashed', [ClientController::class, 'trashed']);
+    Route::get('/clients/trashed', [ClientCWDontroller::class, 'trashed']);
     Route::get('/clients', [ClientController::class, 'index']);
     Route::post('/clients', [ClientController::class, 'store']);
     Route::get('/clients/{client}', [ClientController::class, 'show']);
@@ -87,7 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // --- Rutas solo para Admins ---
     Route::middleware('can:admin')->group(function () {
-        Route::post('/users', [UserController::class, 'store']);
+        // Esto crea automáticamente las 5 rutas del CRUD
+        // (index, store, show, update, destroy)
+        Route::apiResource('users', UserController::class);
     });
 
     Route::get('/ping', function () {

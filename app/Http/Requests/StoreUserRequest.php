@@ -3,22 +3,33 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
 
 class StoreUserRequest extends FormRequest
 {
+    /**
+     * Determine if the user is authorized to make this request.
+     */
     public function authorize(): bool
     {
-        // La autorización se maneja en la ruta con 'can:admin', así que aquí permitimos continuar.
+        // La autorización ya se maneja en la ruta con el middleware 'can:admin'.
+        // Si no, aquí podrías poner: return $this->user()->role === 'admin';
         return true;
     }
 
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'email', 'max:150', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'], // requiere password_confirmation
-            'role' => ['required', 'in:admin,staff'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'role' => ['required', 'string', Rule::in(['admin', 'staff'])], // Asumimos que solo puedes crear admin o staff
+            'password' => ['required', 'confirmed', Password::min(8)],
         ];
     }
 }
