@@ -26,12 +26,16 @@ class StoreOrderRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'exists:clients,id'],
+            // CÓDIGO LARAVEL CORREGIDO
             'client_address_id' => [
-                'required', // Ahora es requerido
+                // La dirección es opcional por defecto.
+                'nullable',
                 'integer',
-                // Regla de existencia: 
-                // 1. Debe existir en la tabla 'client_addresses'
-                // 2. Y debe pertenecer al 'client_id' que también se está enviando en este request.
+            
+                // PERO: Si el campo 'delivery_cost' es mayor que 0, entonces SÍ es requerido.
+                'required_if:delivery_cost,>0', 
+            
+                // Regla de existencia (se mantiene)
                 Rule::exists('client_addresses', 'id')->where(function ($query) {
                     return $query->where('client_id', $this->input('client_id'));
                 }),
