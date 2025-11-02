@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rule; // 👈 1. IMPORTAR LA CLASE 'Rule'
 
 class StoreOrderRequest extends FormRequest
 {
@@ -13,8 +13,7 @@ class StoreOrderRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Mantener en true si cualquier usuario autenticado puede crear/editar pedidos
-        // O añadir lógica de autorización si es necesario (ej. Auth::check())
+        // (Sin cambios)
         return true;
     }
 
@@ -31,9 +30,8 @@ class StoreOrderRequest extends FormRequest
                 'required', // Ahora es requerido
                 'integer',
                 // Regla de existencia: 
-                // 1. Debe existir en la tabla 'client_addresses' (columna 'id')
-                // 2. Y ADEMÁS, el 'client_id' de esa dirección debe coincidir 
-                //    con el 'client_id' que también se está enviando en este request.
+                // 1. Debe existir en la tabla 'client_addresses'
+                // 2. Y debe pertenecer al 'client_id' que también se está enviando en este request.
                 Rule::exists('client_addresses', 'id')->where(function ($query) {
                     return $query->where('client_id', $this->input('client_id'));
                 }),
@@ -47,18 +45,15 @@ class StoreOrderRequest extends FormRequest
             'notes' => ['nullable', 'string'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.id' => ['nullable', 'integer', 'exists:order_items,id'], // Allow ID for updates
+            'items.*.id' => ['nullable', 'integer', 'exists:order_items,id'],
             'items.*.name' => ['required', 'string', 'max:191'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
 
-            // --- VALIDATION FOR NEW PRICE FIELDS ---
             'items.*.base_price' => ['required', 'numeric', 'min:0'],
-            'items.*.adjustments' => ['nullable', 'numeric'], // Allows negative
+            'items.*.adjustments' => ['nullable', 'numeric'],
             'items.*.customization_notes' => ['nullable', 'string'],
-            // --- END VALIDATION ---
-
+            
             'items.*.customization_json' => ['nullable', 'array'],
-            // Optional: More specific validation for customization_json
              'items.*.customization_json.weight_kg' => ['nullable', 'numeric', 'min:0'],
              'items.*.customization_json.selected_fillings' => ['nullable', 'array'],
              'items.*.customization_json.calculated_final_unit_price' => ['nullable', 'numeric', 'min:0'],
@@ -74,6 +69,8 @@ class StoreOrderRequest extends FormRequest
      */
     public function withValidator(Validator $validator): void
     {
+        // (Esta función no necesita cambios, tu lógica de validación de
+        // tiempo y depósito es independiente de la dirección)
         $validator->after(function (Validator $v) {
             // 1) End time > Start time validation (No change)
             $start = $this->input('start_time');
@@ -94,32 +91,25 @@ class StoreOrderRequest extends FormRequest
                 $calculatedItemsTotal = 0.0;
 
                 foreach ($items as $key => $item) {
-                    // Validate required numeric fields for calculation
                     $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
-                    // 👇 Use base_price and adjustments for calculation
-                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0; // Use -1 to detect missing/invalid
-                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0; // Default adjustments to 0 if missing/invalid
+                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0; 
+                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0; 
 
-                    // Check if base price is valid
                     if ($qty <= 0 || $basePrice < 0) {
                          $v->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
-                         // Don't 'return' here, let it check all items first
-                         continue; // Skip to next item
+                         continue; 
                     }
 
-                    // Calculate final unit price for this item
                     $finalUnitPrice = $basePrice + $adjustments;
 
-                    // Ensure final unit price is not negative (unless explicitly allowed?)
                     if ($finalUnitPrice < 0) {
                          $v->errors()->add("items.$key", 'El precio final del ítem (base + ajuste) no puede ser negativo.');
                          continue;
                     }
 
-                    $calculatedItemsTotal += $qty * $finalUnitPrice; // Sum using final price
+                    $calculatedItemsTotal += $qty * $finalUnitPrice;
                 }
 
-                 // Only proceed with deposit validation if there were no item errors above
                  if (! $v->errors()->has('items.*')) {
                     $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
                     $deposit = (float) ($this->input('deposit') ?? 0);
@@ -141,8 +131,7 @@ class StoreOrderRequest extends FormRequest
 
      /**
      * Prepare the data for validation.
-     * Convierte fechas y horas al formato esperado si es necesario.
-     *
+     * (Esta función no necesita cambios)
      * @return void
      */
     protected function prepareForValidation()
@@ -167,3 +156,4 @@ class StoreOrderRequest extends FormRequest
         }
     }
 }
+

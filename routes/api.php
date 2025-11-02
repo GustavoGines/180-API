@@ -6,6 +6,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ClientAddressController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -70,10 +71,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('addresses/{address}', [ClientAddressController::class, 'destroy']);
     });
 
-    // --- Pedidos ---
+    // --- Pedidos ---W
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders/{order}', [OrderController::class, 'show']); // Corregido
+    Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::put('/orders/{order}', [OrderController::class, 'update']);
     Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
     Route::post('/orders/upload-photo', [OrderController::class, 'uploadPhoto']);
