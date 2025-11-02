@@ -20,15 +20,20 @@ class ClientController extends Controller
 
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
-                // Para PostgreSQL usamos ILIKE (case-insensitive)
-                // 'LIKE' es universal (MySQL, PostgreSQL, etc.)
-                // Escapamos los caracteres
-                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%';                
+                
+                // 1. NORMALIZAMOS el término de búsqueda para buscar correctamente por teléfono
+                $normalizedQuery = $this->normalizePhone($searchQuery);
+                
+                // 2. Preparamos el patrón LIKE para búsquedas (generalmente se usa ILIKE en PG)
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%'; 
+                $normalizedLike = '%'.str_replace(['%', '_'], ['\%', '\_'], $normalizedQuery).'%'; 
+
                 // Usamos unaccent() para ignorar tildes E ILIKE para ignorar mayúsculas
-                $builder->where(function ($subquery) use ($like) {
+                $builder->where(function ($subquery) use ($like, $normalizedLike) {
                     $subquery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$like])
-                        ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$like])
-                        ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$like]);
+                             ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$like]) // Búsqueda normal
+                             ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$normalizedLike]) // Búsqueda por número normalizado
+                             ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$like]);
                 });
             })
             ->orderBy('name')
@@ -44,16 +49,21 @@ class ClientController extends Controller
     public function store(StoreClientRequest $request)
     {
         $validated = $request->validated();
-        // 1. NORMALIZA: Quita espacios al inicio/final
+        
+        // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
+        
+        if (isset($validated['phone'])) {
+            $validated['phone'] = $this->normalizePhone($validated['phone']);
+        }
+        $validated['name'] = $name; // Usamos el nombre limpio para la creación
 
-        // 2. COMPARA: Revisa si existe usando unaccent() y LOWER()
+        // 2. COMPARA: Revisa si existe usando el nombre normalizado.
         $existingClient = Client::withTrashed()
             ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
             ->first();
 
         if ($existingClient) {
-            // ... (Tu lógica de 409 y 422 para restaurar o avisar de duplicado está perfecta)
             if ($existingClient->trashed()) {
                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe en la papelera.',
@@ -66,8 +76,7 @@ class ClientController extends Controller
             }
         }
 
-        // 4. CREA: Usa el nombre ya "trimeado"
-        $validated['name'] = $name; 
+        // 3. CREA: Usa el array $validated que ya tiene el teléfono normalizado.
         $client = Client::create($validated);
         
         return response()->json(['data' => $client], Response::HTTP_CREATED);
@@ -91,13 +100,17 @@ class ClientController extends Controller
     {
         $validated = $request->validated();
         
-        // 1. NORMALIZA: Quita espacios al inicio/final
+        // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
+        
+        if (isset($validated['phone'])) {
+            $validated['phone'] = $this->normalizePhone($validated['phone']);
+        }
+        $validated['name'] = $name; // Usamos el nombre limpio para la actualización
 
         // 2. COMPARA: Revisa si existe usando unaccent() y LOWER()
         $existingClient = Client::withTrashed()
             ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
-            // ¡Esta es la condición clave para UPDATE!
             // Solo busca conflictos si el ID encontrado es DIFERENTE al actual
             ->where('id', '!=', $client->id) 
             ->first();
@@ -115,9 +128,8 @@ class ClientController extends Controller
                 ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
             }
         }
-
-        // 4. ACTUALIZA: Usa el nombre ya "trimeado"
-        $validated['name'] = $name; 
+        
+        // 4. ACTUALIZA: Usamos el array $validated que ya contiene los datos normalizados.
         $client->update($validated);
 
         return response()->json(['data' => $client->fresh()]);
@@ -195,5 +207,47 @@ class ClientController extends Controller
         $client->forceDelete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    private function normalizePhone(?string $phone): ?string
+    {
+        if (empty($phone)) {
+            return null;
+        }
+
+        // 1. Eliminar todo lo que no sea número, manteniendo el signo '+'
+        $normalized = preg_replace('/[^\d+]/', '', $phone);
+
+        // Si el número tiene menos de 10 dígitos útiles, es demasiado corto para normalizar
+        if (strlen(ltrim($normalized, '+')) < 10) {
+            return $normalized;
+        }
+
+        // 2. Si ya empieza con +549, está casi perfecto
+        if (str_starts_with($normalized, '+549')) {
+            return $normalized;
+        }
+
+        // 3. Si empieza con 549, le añadimos el '+'
+        if (str_starts_with($normalized, '549')) {
+             return '+' . $normalized;
+        }
+
+        // 4. Si empieza con 0 o 15, intentamos eliminar prefijos locales de llamadas.
+        // Esto es crucial para los números sacados de la agenda (que a menudo tienen 15 o 0).
+        if (str_starts_with($normalized, '0') || str_starts_with($normalized, '15')) {
+             $normalized = ltrim($normalized, '0');
+             $normalized = ltrim($normalized, '15');
+        }
+
+        // 5. Si ahora tiene la longitud típica de un número móvil argentino (ej: 10 dígitos o similar),
+        // y NO tiene código de país, le agregamos el código +549.
+        // Nota: Esto es una simplificación y es mejor que el número siempre esté en el formato +549 en la BD.
+        if (strlen($normalized) >= 10 && strlen($normalized) <= 12 && !str_starts_with($normalized, '54')) {
+            return '+549' . $normalized;
+        }
+        
+        // Fallback: Devolvemos el número tal cual, limpio de caracteres
+        return $normalized;
     }
 }
