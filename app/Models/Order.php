@@ -26,7 +26,7 @@ class Order extends Model
     }
     
     // Un pedido pertenece a una dirección
-    public function address()
+    public function clientAddress()
     {
         return $this->belongsTo(ClientAddress::class, 'client_address_id');
     }
