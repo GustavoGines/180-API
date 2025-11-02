@@ -71,7 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('addresses/{address}', [ClientAddressController::class, 'destroy']);
     });
 
-    // --- Pedidos ---W
+    // --- Pedidos ---
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
@@ -81,6 +81,9 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // --- Estado del pedido---
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+
+    // Para marcar como pagado totalmente
+    Route::patch('/orders/{order}/mark-paid', [OrderController::class, 'markAsPaid']);
 
     // --- Dispositivos (FCM) ---
     Route::post('/devices/register', [DeviceController::class, 'store']);

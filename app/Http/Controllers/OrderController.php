@@ -286,6 +286,39 @@ class OrderController extends Controller
     }
 
     /**
+     * PATCH /api/orders/{order}/mark-paid
+     * Actualiza el depósito al valor total para marcar como completamente pagado.
+     */
+    public function markAsPaid(Request $request, Order $order)
+    {
+        if (! Gate::allows('manage-orders')) {
+            abort(403, 'No tienes permiso para realizar esta acción.');
+        }
+        
+        // 1. Verificar si el total es numérico y la orden no está ya pagada.
+        if (! is_numeric($order->total) || $order->total <= 0 || $order->deposit >= $order->total) {
+             // Devolver un error 422 si no es posible marcar como pagado
+             return response()->json([
+                 'message' => 'El pedido ya está pagado o el total es inválido.',
+             ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // 2. Actualizar el depósito
+        $order->deposit = $order->total;
+        $order->save();
+
+        // 3. Opcional: Sincronizar Calendar (ya que el total podría ser relevante)
+        try {
+            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
+        } catch (\Exception $e) {
+            Log::error("Error al actualizar evento GC (pago) para orden {$order->id}: " . $e->getMessage());
+        }
+
+        // 4. Devolver la orden actualizada
+        return response()->json($order->fresh(['client', 'items']));
+    }
+
+    /**
      * POST /api/orders/upload-photo
      * Sube una foto a Supabase y devuelve la URL.
      */
