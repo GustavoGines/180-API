@@ -23,4 +23,15 @@ class ClientAddress extends Model
     {
         return $this->belongsTo(Client::class);
     }
+
+    /**
+     * 👇 --- AÑADE ESTE MÉTODO --- 👇
+     *
+     * Relación: La dirección puede estar en muchos pedidos.
+     */
+    public function orders()
+    {
+        // Asume que la tabla 'orders' tiene la columna 'delivery_address_id'
+        return $this->hasMany(Order::class, 'delivery_address_id');
+    }
 }
