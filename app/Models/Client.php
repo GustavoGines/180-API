@@ -12,11 +12,16 @@ class Client extends Model
 
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'phone', 'email', 'ig_handle', 'address', 'notes'];
+    protected $fillable = ['name', 'phone', 'email', 'ig_handle', 'notes'];
 
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function addresses()
+    {
+        return $this->hasMany(ClientAddress::class);
     }
 
     protected $dates = ['deleted_at'];

@@ -78,6 +78,8 @@ class ClientController extends Controller
      */
     public function show(Client $client)
     {
+        $client->load('addresses');
+
         return response()->json(['data' => $client]);
     }
 
@@ -124,7 +126,7 @@ class ClientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Client $client) // 👈 MODIFICA ESTE MÉTODO
+    public function destroy(Client $client) 
     {
         // Aquí podrías añadir validaciones (ej. no borrar si tiene pedidos)
         // if ($client->orders()->exists()) {

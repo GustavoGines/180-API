@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'client_id', 'event_date', 'start_time', 'end_time', 'status',
-        'total', 'deposit', 'delivery_cost', 'notes', 'google_event_id',
+        'total', 'deposit', 'delivery_cost', 'notes', 'google_event_id', 'client_address_id',
     ];
 
     protected $casts = [
@@ -21,7 +23,13 @@ class Order extends Model
     {
         return $this->belongsTo(Client::class);
     }
-
+    
+    // Un pedido pertenece a una dirección
+    public function address()
+    {
+        return $this->belongsTo(ClientAddress::class, 'client_address_id');
+    }
+    
     public function items()
     {
         return $this->hasMany(OrderItem::class);

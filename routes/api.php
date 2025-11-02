@@ -60,6 +60,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/clients/{id}/restore', [ClientController::class, 'restore']);
     Route::delete('/clients/{id}/force-delete', [ClientController::class, 'forceDelete']);
 
+    // (Están "anidadas" bajo un cliente)
+    Route::prefix('clients/{client}')->group(function () {
+        // POST /api/clients/1/addresses
+        Route::post('addresses', [ClientAddressController::class, 'store']);
+        // PUT /api/clients/1/addresses/5
+        Route::put('addresses/{address}', [ClientAddressController::class, 'update']);
+        // DELETE /api/clients/1/addresses/5
+        Route::delete('addresses/{address}', [ClientAddressController::class, 'destroy']);
+    });
+
     // --- Pedidos ---
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);

@@ -46,7 +46,6 @@ class StoreClientRequest extends FormRequest
             ],
 
             'ig_handle' => ['nullable', 'string', 'max:80'],
-            'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ];
     }

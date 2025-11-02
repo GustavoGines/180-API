@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
+use Illuminate\Validation\Rule;
 
 class StoreOrderRequest extends FormRequest
 {
@@ -26,6 +27,17 @@ class StoreOrderRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'exists:clients,id'],
+            'client_address_id' => [
+                'required', // Ahora es requerido
+                'integer',
+                // Regla de existencia: 
+                // 1. Debe existir en la tabla 'client_addresses' (columna 'id')
+                // 2. Y ADEMÁS, el 'client_id' de esa dirección debe coincidir 
+                //    con el 'client_id' que también se está enviando en este request.
+                Rule::exists('client_addresses', 'id')->where(function ($query) {
+                    return $query->where('client_id', $this->input('client_id'));
+                }),
+            ],
             'event_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
@@ -44,8 +56,6 @@ class StoreOrderRequest extends FormRequest
             'items.*.adjustments' => ['nullable', 'numeric'], // Allows negative
             'items.*.customization_notes' => ['nullable', 'string'],
             // --- END VALIDATION ---
-
-            // 'items.*.unit_price' => ['required', 'numeric', 'min:0'], // <-- REMOVED or make nullable if needed for backward compatibility
 
             'items.*.customization_json' => ['nullable', 'array'],
             // Optional: More specific validation for customization_json
