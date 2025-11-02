@@ -31,7 +31,7 @@ class ClientAddress extends Model
      */
     public function orders()
     {
-        // Asume que la tabla 'orders' tiene la columna 'delivery_address_id'
-        return $this->hasMany(Order::class, 'delivery_address_id');
+        // Asume que la tabla 'orders' tiene la columna 'client_address_id'
+        return $this->hasMany(Order::class, 'client_address_id');
     }
 }
