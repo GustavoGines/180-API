@@ -177,13 +177,21 @@ class OrderController extends Controller
             $newDeliveryCost = (float) ($validated['delivery_cost'] ?? 0);
             $newCalculatedGrandTotal = $newItemsTotal + $newDeliveryCost;
 
-            // 2. Actualizar datos principales de la orden (excluyendo items y deposit)
-             $orderData = Arr::except($validated, ['items', 'deposit']);
-             $orderData['total'] = $newCalculatedGrandTotal; // Guardar el NUEVO total calculado
-             $order->update($orderData); // Actualizar campos principales
+            $orderData = Arr::except($validated, ['items', 'deposit']);
 
-            // 3. Reemplazar ítems
+            // 3. (NUEVO) Calcular el depósito ANTES de actualizar
+            $newDeposit = (float) ($validated['deposit'] ?? 0); // Usar el depósito que viene en la request
+            
+            // 4. (NUEVO) Añadir el total Y el depósito al array de datos
+            $orderData['total'] = $newCalculatedGrandTotal;
+            $orderData['deposit'] = min($newDeposit, $newCalculatedGrandTotal);
+
+            // 5. Actualizar la orden CON AMBOS VALORES a la vez
+            $order->update($orderData); 
+
+            // 6. Reemplazar ítems
             $order->items()->delete(); // Borra los items viejos de la BD
+
              if (isset($validated['items']) && is_array($validated['items'])) {
                  $itemsData = array_map(function ($item) {
                       return [
@@ -199,12 +207,7 @@ class OrderController extends Controller
                  }, $validated['items']);
                  $order->items()->createMany($itemsData); // Crea los nuevos items
              }
-
-            // 4. Ajustar depósito final (nunca mayor al NUEVO total)
-            $newDeposit = (float) ($validated['deposit'] ?? 0); // Usar el depósito que viene en la request
-            $order->deposit = min($newDeposit, $newCalculatedGrandTotal);
             
-            // --- INICIO: BORRAR FOTOS HUÉRFANAS DE SUPABASE (Sin cambios) ---
             if (!empty($urlsToDelete)) {
                 $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/');
                 $pathsToDelete = [];
@@ -225,13 +228,6 @@ class OrderController extends Controller
                     }
                 }
             }
-            // --- FIN: BORRAR FOTOS HUÉRFANAS ---
-
-            // 5. Guardar todos los cambios acumulados (incluido el depósito ajustado)
-            $order->save();
-
-
-            // 6. Sincronizar Calendar (con try-catch)
             try {
                 $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
             } catch (\Exception $e) {
