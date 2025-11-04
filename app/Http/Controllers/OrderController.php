@@ -209,22 +209,23 @@ class OrderController extends Controller
              }
             
             if (!empty($urlsToDelete)) {
-                $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/');
+                // 👇 USA LA URL DEL DISCO 's3' (R2)
+                $r2BaseUrl = rtrim(Storage::disk('s3')->url(''), '/');
                 $pathsToDelete = [];
                 foreach ($urlsToDelete as $url) {
-                     if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
-                         $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
-                         if (!empty($path)) $pathsToDelete[] = $path;
-                     } else {
-                         Log::warning("[Update Order {$order->id}] URL huérfana no reconocida: " . $url);
-                     }
+                    // 👇 COMPARA CON LA URL DE R2
+                    if ($url && str_starts_with((string)$url, $r2BaseUrl)) {
+                        $path = ltrim(substr((string)$url, strlen($r2BaseUrl)), '/');
+                        if (!empty($path)) $pathsToDelete[] = $path;
+                    } // ...
                 }
                 if (!empty($pathsToDelete)) {
-                    Log::info("[Update Order {$order->id}] Borrando archivos huérfanos: " . implode(', ', $pathsToDelete));
+                    Log::info("[Update Order {$order->id}] Borrando archivos huérfanos de R2: " . implode(', ', $pathsToDelete));
                     try {
-                        Storage::disk('supabase')->delete($pathsToDelete);
+                        // 👇 BORRA DEL DISCO 's3'
+                        Storage::disk('s3')->delete($pathsToDelete);
                     } catch (\Exception $e) {
-                        Log::error("[Update Order {$order->id}] Error borrando de Supabase: " . $e->getMessage());
+                        Log::error("[Update Order {$order->id}] Error borrando de R2: " . $e->getMessage());
                     }
                 }
             }
@@ -365,22 +366,23 @@ class OrderController extends Controller
             $photoUrlsToDelete = array_unique($photoUrlsToDelete);
 
             if (!empty($photoUrlsToDelete)) {
-                $supabaseBaseUrl = rtrim(Storage::disk('supabase')->url(''), '/');
+                // 👇 USA LA URL DEL DISCO 's3' (R2)
+                $r2BaseUrl = rtrim(Storage::disk('s3')->url(''), '/');
                 $pathsToDelete = [];
                 foreach ($photoUrlsToDelete as $url) {
-                     if ($url && str_starts_with((string)$url, $supabaseBaseUrl)) {
-                         $path = ltrim(substr((string)$url, strlen($supabaseBaseUrl)), '/');
+                     // 👇 COMPARA CON LA URL DE R2
+                     if ($url && str_starts_with((string)$url, $r2BaseUrl)) {
+                         $path = ltrim(substr((string)$url, strlen($r2BaseUrl)), '/');
                          if (!empty($path)) $pathsToDelete[] = $path;
-                     } else {
-                         Log::warning("[Destroy Order {$order->id}] URL Supabase no reconocida: " . $url);
-                     }
+                     } // ...
                 }
                 if (!empty($pathsToDelete)) {
-                    Log::info("[Destroy Order {$order->id}] Borrando de Supabase: " . implode(', ', $pathsToDelete));
+                    Log::info("[Destroy Order {$order->id}] Borrando de R2: " . implode(', ', $pathsToDelete));
                     try {
-                        Storage::disk('supabase')->delete($pathsToDelete);
+                        // 👇 BORRA DEL DISCO 's3'
+                        Storage::disk('s3')->delete($pathsToDelete);
                     } catch (\Exception $e) {
-                        Log::error("[Destroy Order {$order->id}] Error borrando de Supabase: " . $e->getMessage());
+                        Log::error("[Destroy Order {$order->id}] Error borrando de R2: " . $e->getMessage());
                     }
                 }
             }
