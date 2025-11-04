@@ -325,17 +325,19 @@ class OrderController extends Controller
         ]);
 
         try {
-            $path = $request->file('photo')->store('order-photos', 'supabase');
+            // ✅ CAMBIO: Sin disco especificado, usa el 'default' (s3)
+            $path = $request->file('photo')->store('order-photos');
 
             if (!$path) {
-                 throw new \Exception("Supabase storage returned an empty path.");
+                throw new \Exception("Storage returned an empty path.");
             }
 
             return response()->json([
-                'url' => Storage::disk('supabase')->url($path)
+                // ✅ CAMBIO: 'Storage::url' usa el disco default
+                'url' => Storage::url($path)
             ]);
         } catch (\Exception $e) {
-            Log::error("Error al subir foto a Supabase: " . $e->getMessage());
+            Log::error("Error al subir foto: " . $e->getMessage());
             return response()->json(['message' => 'Error al subir la imagen al servidor.'], 500);
         }
     }
