@@ -82,4 +82,13 @@ apache2ctl -S || true
 grep -R "DocumentRoot" /etc/apache2/sites-enabled/ -n || true
 
 # ---------- Start Apache ----------
+# Lanza el planificador en background
+(
+  while true
+  do
+    php artisan schedule:run >> /dev/null 2>&1
+    sleep 300
+  done
+) &
+
 exec apache2-foreground

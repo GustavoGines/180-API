@@ -21,6 +21,7 @@
 /storage/pail
 /storage/logs/
 /storage/framework/
+/storage/app/firebase_service_account.json
 /vendor
 Homestead.json
 Homestead.yaml

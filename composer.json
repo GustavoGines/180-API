@@ -13,6 +13,7 @@
         "doctrine/dbal": "^4.3",
         "google/apiclient": "2.17",
         "guzzlehttp/guzzle": "^7.10",
+        "kreait/laravel-firebase": "^6.1",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
