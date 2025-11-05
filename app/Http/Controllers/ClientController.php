@@ -18,6 +18,8 @@ class ClientController extends Controller
     {
         $searchQuery = $request->query('query');
 
+        \Log::info('Buscando clientes con query: ' . $searchQuery);
+
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 
