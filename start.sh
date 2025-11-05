@@ -97,7 +97,7 @@ echo "[Scheduler] Iniciando el bucle del planificador de Laravel (cada 5 minutos
   while true
   do
     echo "[Scheduler] >>> Ejecutando 'php artisan schedule:run'..."
-    php artisan schedule:run
+    php artisan schedule:run || echo "WARN: schedule:run falló (continuo)"
     echo "[Scheduler] <<< Esperando 5 minutos ..."
     sleep 300
   done
