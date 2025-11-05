@@ -3,7 +3,7 @@ set -e
 
 # ---------- Apache: escuchar el puerto que Render expone ----------
 if [ -n "${PORT:-}" ]; then
-  echo "Listen ${PORT}" > /etc/apache2/ports.conf
+  echo "Listen ${PORT}" > /etc/apache2/ports.conf
 else
   echo "WARN: \$PORT no está seteado; Apache quedará en 80"
 fi
