@@ -39,6 +39,15 @@ mkdir -p storage/app storage/framework/{cache,sessions,views} storage/logs boots
 chown -R www-data:www-data storage bootstrap/cache || true
 chmod -R ug+rwX storage bootstrap/cache || true
 
+# ---------- Firebase credentials ----------
+if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then
+  echo "Creando firebase_service_account.json desde FIREBASE_CREDENTIALS..."
+  echo "$FIREBASE_CREDENTIALS" > /var/www/html/storage/app/firebase_service_account.json
+  chmod 600 /var/www/html/storage/app/firebase_service_account.json
+else
+  echo "WARN: No FIREBASE_CREDENTIALS env var found. Firebase SDK no disponible."
+fi
+
 # APP_KEY (si no viene por env)
 if [ -z "${APP_KEY:-}" ]; then
   echo "No APP_KEY env; generating ephemeral key..."
