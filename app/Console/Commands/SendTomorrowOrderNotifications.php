@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
-use App\Models\User; // ✅ 1. IMPORTANTE: Importar el modelo User
+use App\Models\User; // IMPORTANTE: Importar el modelo User
 
 class SendTomorrowOrderNotifications extends Command
 {
@@ -26,12 +26,20 @@ class SendTomorrowOrderNotifications extends Command
 
     public function handle()
     {
-        $now = now();
-        $from = $now->copy()->addHours(24);
+        // ✅ INICIO DEL CAMBIO: Lógica de 'floorMinutes'
+        // 1. Redondea la hora actual HACIA ABAJO al múltiplo de 5 más cercano.
+        //    Ej: Si el cron corre a las 10:05:02, $baseTime será 10:05:00.
+        //    Ej: Si el cron corre a las 10:09:59, $baseTime será 10:05:00.
+        $baseTime = now()->floorMinutes(5);
+
+        // 2. Define el rango de 5 minutos, 24 horas en el futuro desde esa hora base.
+        $from = $baseTime->copy()->addHours(24);
         $to = $from->copy()->addMinutes(5); 
 
-        $this->info("Buscando pedidos entre {$from->format('Y-m-d H:i')} y {$to->format('Y-m-d H:i')}...");
+        $this->info("Buscando pedidos en el rango FIJO de 24h: {$from->format('Y-m-d H:i')} a {$to->format('Y-m-d H:i')}...");
+        // ✅ FIN DEL CAMBIO
 
+        // Esta consulta ahora es 100% precisa para ese bloque de 5 minutos
         $orders = Order::where('event_date', $from->toDateString())
                        ->whereTime('start_time', '>=', $from->toTimeString())
                        ->whereTime('start_time', '<', $to->toTimeString())
@@ -40,26 +48,25 @@ class SendTomorrowOrderNotifications extends Command
                        ->get();
 
         if ($orders->isEmpty()) {
-            $this->info('No se encontraron pedidos para notificar en este rango.');
+            $this.info('No se encontraron pedidos para notificar en este rango.');
             return 0;
         }
 
-        $this->info("Se encontraron {$orders->count()} pedidos para notificar.");
+        $this.info("Se encontraron {$orders->count()} pedidos para notificar.");
 
-        // ✅ 2. OBTENER TOKENS SÓLO DE ADMINS Y STAFF
-        // Busca en la tabla 'devices' SÓLO aquellos que pertenezcan
-        // a un 'user' que tenga el rol 'admin' O 'staff'.
+        // OBTENER TOKENS SÓLO DE ADMINS Y STAFF
+        // (Esta lógica está perfecta como la tenías)
         $adminAndStaffTokens = Device::whereHas('user', function ($query) {
             $query->whereIn('role', ['admin', 'staff']);
         })->pluck('fcm_token')->filter()->unique();
 
 
         if ($adminAndStaffTokens->isEmpty()) {
-            $this->info('No hay dispositivos de admin/staff registrados para notificar.');
+            $this.info('No hay dispositivos de admin/staff registrados para notificar.');
             return 0;
         }
 
-        $this->info("Enviando a {$adminAndStaffTokens->count()} dispositivo(s) de admin/staff.");
+        $this.info("Enviando a {$adminAndStaffTokens->count()} dispositivo(s) de admin/staff.");
 
         // Por cada pedido...
         foreach ($orders as $order) {
@@ -75,11 +82,11 @@ class SendTomorrowOrderNotifications extends Command
             // ...enviar una notificación a cada dispositivo del staff/admin
             foreach ($adminAndStaffTokens as $fcmToken) {
                 Log::info("Notificando token {$fcmToken} para Pedido #{$order->id}");
-                $this->sendNotification($fcmToken, $title, $body);
+                $this.sendNotification($fcmToken, $title, $body);
             }
         }
 
-        $this->info('✅ Notificaciones enviadas.');
+        $this.info('✅ Notificaciones enviadas.');
         return 0;
     }
 
@@ -94,7 +101,7 @@ class SendTomorrowOrderNotifications extends Command
             $message = CloudMessage::withTarget('token', $fcmToken)
                 ->withNotification($notification);
                 
-            $this->messaging->send($message);
+            $this.messaging->send($message);
 
         } catch (\Kreait\Firebase\Exception\Messaging\InvalidMessage $e) {
             Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: " . $e->getMessage());
