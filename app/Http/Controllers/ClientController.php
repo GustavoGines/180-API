@@ -18,27 +18,36 @@ class ClientController extends Controller
     {
         $searchQuery = $request->query('query');
 
-        \Log::info('Buscando clientes con query: ' . $searchQuery);
-
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 
-                // 1. NORMALIZAMOS el término de búsqueda para buscar correctamente por teléfono
-                $normalizedQuery = $this->normalizePhone($searchQuery);
-                
-                // 2. Preparamos el patrón LIKE para búsquedas (generalmente se usa ILIKE en PG)
-                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $searchQuery).'%'; 
-                $normalizedLike = '%'.str_replace(['%', '_'], ['\%', '\_'], $normalizedQuery).'%'; 
+                // 1. Separa la búsqueda en palabras (ej: "Gus Bog")
+                $searchTerms = explode(' ', $searchQuery);
 
-                // Usamos unaccent() para ignorar tildes E ILIKE para ignorar mayúsculas
-                $builder->where(function ($subquery) use ($like, $normalizedLike) {
-                    $subquery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$like])
-                             ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$like]) // Búsqueda normal
-                             ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$normalizedLike]) // Búsqueda por número normalizado
-                             ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$like]);
+                // 2. Itera sobre cada palabra y exige que CADA palabra
+                //    esté en ALGUNAS de las columnas.
+                return $builder->where(function ($subQuery) use ($searchTerms) {
+                    
+                    foreach ($searchTerms as $term) {
+                        $term = trim($term);
+                        if (!empty($term)) {
+                            // 3. Prepara el término para LIKE (con unaccent)
+                            $likeTerm = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%'; 
+
+                            // 4. Exige que CADA término ($term) exista en alguna parte
+                            $subQuery->where(function ($wordQuery) use ($likeTerm) {
+                                // Usa ILIKE (ignora mayús/min) y unaccent (ignora acentos)
+                                $wordQuery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$likeTerm])
+                                          ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$likeTerm])
+                                          ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$likeTerm]);
+                            });
+                        }
+                    }
                 });
             })
             ->orderBy('name')
+            // 5. Mantenemos 'paginate' porque tu app de Flutter (ClientsRepository)
+            //    está esperando una respuesta paginada ('data' => [...])
             ->paginate(20);
 
         return response()->json($clients);
