@@ -3,11 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Models\Order;
+use App\Models\Device; // Importar el modelo Device
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log; // Importante para loguear
+use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
+use App\Models\User; // ✅ 1. IMPORTANTE: Importar el modelo User
 
 class SendTomorrowOrderNotifications extends Command
 {
@@ -25,54 +27,64 @@ class SendTomorrowOrderNotifications extends Command
     public function handle()
     {
         $now = now();
-        $from = $now->copy()->addHours(24); // Rango de inicio: exactamente 24hs desde ahora
-        $to = $from->copy()->addMinutes(5); // Rango de fin: 24hs + 5 mins desde ahora
-    
+        $from = $now->copy()->addHours(24);
+        $to = $from->copy()->addMinutes(5); 
+
         $this->info("Buscando pedidos entre {$from->format('Y-m-d H:i')} y {$to->format('Y-m-d H:i')}...");
-    
-        // ✅ CONSULTA CORREGIDA
-        $orders = Order::where('event_date', $from->toDateString()) // 1. Que el DÍA sea mañana
-                       ->whereTime('start_time', '>=', $from->toTimeString()) // 2. Que la HORA sea >=
-                       ->whereTime('start_time', '<', $to->toTimeString()) // 3. Que la HORA sea <
+
+        $orders = Order::where('event_date', $from->toDateString())
+                       ->whereTime('start_time', '>=', $from->toTimeString())
+                       ->whereTime('start_time', '<', $to->toTimeString())
                        ->where('status', 'confirmed')
-                       ->with('client.devices')
+                       ->with('client')
                        ->get();
-    
+
         if ($orders->isEmpty()) {
             $this->info('No se encontraron pedidos para notificar en este rango.');
             return 0;
         }
-    
+
         $this->info("Se encontraron {$orders->count()} pedidos para notificar.");
-    
+
+        // ✅ 2. OBTENER TOKENS SÓLO DE ADMINS Y STAFF
+        // Busca en la tabla 'devices' SÓLO aquellos que pertenezcan
+        // a un 'user' que tenga el rol 'admin' O 'staff'.
+        $adminAndStaffTokens = Device::whereHas('user', function ($query) {
+            $query->whereIn('role', ['admin', 'staff']);
+        })->pluck('fcm_token')->filter()->unique();
+
+
+        if ($adminAndStaffTokens->isEmpty()) {
+            $this->info('No hay dispositivos de admin/staff registrados para notificar.');
+            return 0;
+        }
+
+        $this->info("Enviando a {$adminAndStaffTokens->count()} dispositivo(s) de admin/staff.");
+
+        // Por cada pedido...
         foreach ($orders as $order) {
-            if (!$order->client || $order->client->devices->isEmpty()) {
-                Log::warning("Pedido #{$order->id} sin cliente o sin dispositivos registrados.");
+            
+            if (!$order->client) {
+                Log::warning("Pedido #{$order->id} sin cliente asignado.");
                 continue;
             }
-    
-            // 3. Preparar el mensaje
+
             $title = '¡Pedido para Mañana!';
-            // Corregimos el mensaje para que sea más claro
             $body = "Recuerda el pedido de {$order->client->name} para mañana a las " . $order->start_time->format('H:i') . "hs.";
-    
-            foreach ($order->client->devices as $device) {
-                if ($device->fcm_token) {
-                    $this->info("Enviando a token {$device->fcm_token} para Pedido #{$order->id}");
-                    
-                    // 🚀 AQUÍ IMPLEMENTAREMOS LA LÓGICA DE ENVÍO
-                    $this->sendNotification($device->fcm_token, $title, $body);
-                }
+
+            // ...enviar una notificación a cada dispositivo del staff/admin
+            foreach ($adminAndStaffTokens as $fcmToken) {
+                Log::info("Notificando token {$fcmToken} para Pedido #{$order->id}");
+                $this->sendNotification($fcmToken, $title, $body);
             }
         }
-    
+
         $this->info('✅ Notificaciones enviadas.');
         return 0;
     }
 
-
     /**
-     * Helper para enviar la notificación (Implementación pendiente)
+     * Helper para enviar la notificación (Esta función está bien)
      */
     private function sendNotification($fcmToken, $title, $body)
     {
@@ -87,7 +99,6 @@ class SendTomorrowOrderNotifications extends Command
         } catch (\Kreait\Firebase\Exception\Messaging\InvalidMessage $e) {
             Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: " . $e->getMessage());
         } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
-            // El token es viejo o inválido, deberíamos borrarlo de la BD
             Log::warning("Token FCM no encontrado, se debería borrar: {$fcmToken}");
             // Opcional: Borrar el dispositivo
             // Device::where('fcm_token', $fcmToken)->delete();
@@ -95,5 +106,4 @@ class SendTomorrowOrderNotifications extends Command
             Log::error("Error genérico al enviar FCM a token {$fcmToken}: " . $e->getMessage());
         }
     }
-    
 }
