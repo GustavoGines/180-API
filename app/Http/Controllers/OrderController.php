@@ -57,8 +57,8 @@ class OrderController extends Controller
                 }),
             ],
             'event_date' => ['required', 'date_format:Y-m-d'],
-            'start_time' => ['nullable', 'date_format:H:i'],
-            'end_time' => ['nullable', 'date_format:H:i'],
+            'start_time' => ['required','date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i'],
             'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],
@@ -229,15 +229,53 @@ class OrderController extends Controller
                 }),
             ],
             'event_date' => ['required', 'date_format:Y-m-d'],
-            'start_time' => ['nullable', 'date_format:H:i'],
-            'end_time' => ['nullable', 'date_format:H:i'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.name' => ['required', 'string', 'max:191'],
         ]);
 
         // 3. Añadir validación 'after'
         $validator->after(function ($validator) use ($validated) {
-            // (Tu lógica de validación 'after' va aquí, igual que en 'store')
+            $start = $validated['start_time'] ?? null;
+            $end = $validated['end_time'] ?? null;
+            if ($start && $end) {
+                $startTime = \DateTime::createFromFormat('H:i', $start);
+                $endTime = \DateTime::createFromFormat('H:i', $end);
+                if ($startTime && $endTime && $endTime <= $startTime) {
+                    $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+                }
+            }
+            $items = $validated['items'] ?? [];
+            $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
+            if (is_array($items) && ! empty($items)) {
+                $calculatedItemsTotal = 0.0;
+                foreach ($items as $key => $item) {
+                    $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
+                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0; 
+                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0; 
+                    if ($qty <= 0 || $basePrice < 0) {
+                        $validator->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
+                        continue; 
+                    }
+                    $finalUnitPrice = $basePrice + $adjustments;
+                    if ($finalUnitPrice < 0) {
+                        $validator->errors()->add("items.$key", 'El precio final del ítem no puede ser negativo.');
+                        continue;
+                    }
+                    $calculatedItemsTotal += $qty * $finalUnitPrice;
+                }
+                if (! $validator->errors()->has('items.*')) {
+                    $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
+                    $deposit = (float) ($validated['deposit'] ?? 0);
+                    $epsilon = 0.01;
+                    if ($deposit > ($calculatedGrandTotal + $epsilon)) {
+                        $validator->errors()->add('deposit', 'El depósito no puede ser mayor al total.');
+                    }
+                }
+            } elseif (($validated['deposit'] ?? 0) > 0) {
+                $validator->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos.');
+            }
         });
 
         if ($validator->fails()) {
