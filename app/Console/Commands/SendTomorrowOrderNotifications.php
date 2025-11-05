@@ -75,7 +75,7 @@ class SendTomorrowOrderNotifications extends Command
 
             foreach ($adminAndStaffTokens as $fcmToken) {
                 Log::info("Notificando token {$fcmToken} para Pedido #{$order->id}");
-                $this->sendNotification($fcmToken, $title, $body);
+                $this->sendNotification($fcmToken, $title, $body, $order->id);
             }
         }
 
@@ -86,19 +86,27 @@ class SendTomorrowOrderNotifications extends Command
     /**
      * Envía una notificación individual a un token FCM
      */
-    private function sendNotification($fcmToken, $title, $body)
+    private function sendNotification($fcmToken, $title, $body, int $orderId)
     {
         try {
             $notification = Notification::create($title, $body);
-
+            
             $message = CloudMessage::withTarget('token', $fcmToken)
-                ->withNotification($notification);
-
+                ->withNotification($notification)
+                // ✅ CAMBIO: Adjuntar el payload de datos
+                ->withData([
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK', // ID estándar para Android
+                    'type' => 'order_detail', // Un tipo custom para que tu app sepa qué hacer
+                    'orderId' => (string)$orderId, // ¡El ID del pedido! (debe ser string)
+                ]);
+                
             $this->messaging->send($message);
+
         } catch (\Kreait\Firebase\Exception\Messaging\InvalidMessage $e) {
             Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: " . $e->getMessage());
         } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
             Log::warning("Token FCM no encontrado, se debería borrar: {$fcmToken}");
+            // Device::where('fcm_token', $fcmToken)->delete();
         } catch (\Exception $e) {
             Log::error("Error genérico al enviar FCM a token {$fcmToken}: " . $e->getMessage());
         }
