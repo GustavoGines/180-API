@@ -91,15 +91,15 @@ apache2ctl -S || true
 grep -R "DocumentRoot" /etc/apache2/sites-enabled/ -n || true
 
 # ---------- Start Apache ----------
-echo "[Scheduler] Iniciando el bucle del planificador de Laravel (cada 5 minutos)..."
+echo "[Scheduler] Iniciando el bucle del planificador de Laravel (cada 60s)..."
 
 (
   while true
   do
     echo "[Scheduler] >>> Ejecutando 'php artisan schedule:run'..."
     php artisan schedule:run || echo "WARN: schedule:run falló (continuo)"
-    echo "[Scheduler] <<< Esperando 5 minutos ..."
-    sleep 300
+    echo "[Scheduler] <<< Esperando 60s ..."
+    sleep 60
   done
 ) &> /dev/stdout &
 

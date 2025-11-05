@@ -74,15 +74,33 @@ class OrderController extends Controller
 
         // 3. Añadir validación 'after' (la que tenías en StoreOrderRequest)
         $validator->after(function ($validator) use ($validated) {
+            // 1. Validación de Hora (¡CORREGIDA!)
+            $date = $validated['event_date'] ?? null;
             $start = $validated['start_time'] ?? null;
             $end = $validated['end_time'] ?? null;
-            if ($start && $end) {
-                $startTime = \DateTime::createFromFormat('H:i', $start);
-                $endTime = \DateTime::createFromFormat('H:i', $end);
-                if ($startTime && $endTime && $endTime <= $startTime) {
-                    $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+
+            if ($date && $start && $end) {
+                try {
+                    // Usamos Carbon (nativo en Laravel) para parsear las fechas
+                    $eventDate = \Carbon\Carbon::parse($date, config('app.timezone'));
+                    $startTime = $eventDate->copy()->setTimeFromTimeString($start);
+                    $endTime = $eventDate->copy()->setTimeFromTimeString($end);
+
+                    // ✅ LA MAGIA: Si la hora de fin es menor, asume que es el día siguiente
+                    if ($endTime->lt($startTime)) {
+                        $endTime->addDay();
+                    }
+
+                    // Validación final
+                    if ($endTime->lte($startTime)) {
+                        $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+                    }
+                } catch (\Exception $e) {
+                    $validator->errors()->add('event_date', 'Formato de fecha u hora inválido.');
                 }
             }
+
+            // 2. Validación de Depósito (se mantiene igual)
             $items = $validated['items'] ?? [];
             $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
             if (is_array($items) && ! empty($items)) {
@@ -105,7 +123,7 @@ class OrderController extends Controller
                 if (! $validator->errors()->has('items.*')) {
                     $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
                     $deposit = (float) ($validated['deposit'] ?? 0);
-                    $epsilon = 0.01;
+                    $epsilon = 0.01; // Pequeña tolerancia para flotantes
                     if ($deposit > ($calculatedGrandTotal + $epsilon)) {
                         $validator->errors()->add('deposit', 'El depósito no puede ser mayor al total.');
                     }
@@ -237,15 +255,33 @@ class OrderController extends Controller
 
         // 3. Añadir validación 'after'
         $validator->after(function ($validator) use ($validated) {
+            // 1. Validación de Hora (¡CORREGIDA!)
+            $date = $validated['event_date'] ?? null;
             $start = $validated['start_time'] ?? null;
             $end = $validated['end_time'] ?? null;
-            if ($start && $end) {
-                $startTime = \DateTime::createFromFormat('H:i', $start);
-                $endTime = \DateTime::createFromFormat('H:i', $end);
-                if ($startTime && $endTime && $endTime <= $startTime) {
-                    $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+
+            if ($date && $start && $end) {
+                try {
+                    // Usamos Carbon (nativo en Laravel) para parsear las fechas
+                    $eventDate = \Carbon\Carbon::parse($date, config('app.timezone'));
+                    $startTime = $eventDate->copy()->setTimeFromTimeString($start);
+                    $endTime = $eventDate->copy()->setTimeFromTimeString($end);
+
+                    // ✅ LA MAGIA: Si la hora de fin es menor, asume que es el día siguiente
+                    if ($endTime->lt($startTime)) {
+                        $endTime->addDay();
+                    }
+
+                    // Validación final
+                    if ($endTime->lte($startTime)) {
+                        $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+                    }
+                } catch (\Exception $e) {
+                    $validator->errors()->add('event_date', 'Formato de fecha u hora inválido.');
                 }
             }
+
+            // 2. Validación de Depósito (se mantiene igual)
             $items = $validated['items'] ?? [];
             $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
             if (is_array($items) && ! empty($items)) {
@@ -521,4 +557,3 @@ class OrderController extends Controller
         return response()->noContent();
     }
 }
-
