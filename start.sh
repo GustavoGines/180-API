@@ -98,8 +98,8 @@ echo "[Scheduler] Iniciando el bucle del planificador de Laravel (cada 60s)..."
   do
     echo "[Scheduler] >>> Ejecutando 'php artisan schedule:run'..."
     php artisan schedule:run
-    echo "[Scheduler] <<< Esperando 60 segundos..."
-    sleep 60
+    echo "[Scheduler] <<< Esperando 5 minutos segundos..."
+    sleep 300
   done
 ) &> /dev/stdout &
 
