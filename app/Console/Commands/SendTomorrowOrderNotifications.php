@@ -106,7 +106,7 @@ class SendTomorrowOrderNotifications extends Command
             Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: " . $e->getMessage());
         } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
             Log::warning("Token FCM no encontrado, se debería borrar: {$fcmToken}");
-            // Device::where('fcm_token', $fcmToken)->delete();
+            Device::where('fcm_token', $fcmToken)->delete();
         } catch (\Exception $e) {
             Log::error("Error genérico al enviar FCM a token {$fcmToken}: " . $e->getMessage());
         }
