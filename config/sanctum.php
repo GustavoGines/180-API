@@ -81,4 +81,19 @@ return [
         'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Prune Expired Tokens
+    |--------------------------------------------------------------------------
+    |
+    | Aquí puedes configurar que los tokens se borren si no han sido
+    | usados recientemente.
+    |
+    */
+
+    'prune_expired' => [
+        // 1 semana = 7 días * 24 horas = 168 horas
+        'hours' => 168,
+    ],
+
 ];

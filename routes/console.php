@@ -17,3 +17,6 @@ Schedule::command(SendTomorrowOrderNotifications::class)
 Schedule::command(SendTodayOrderNotifications::class)
     ->dailyAt('08:00') // <-- Se ejecuta todos los días a las 8:00 AM
     ->appendOutputTo(storage_path('logs/laravel.log'));
+
+
+Schedule::command('sanctum:prune-expired')->daily();
