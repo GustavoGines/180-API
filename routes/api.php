@@ -86,6 +86,33 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Dispositivos (FCM) ---
     Route::post('/devices/register', [DeviceController::class, 'store']);
+
+    /**
+     * Elimina un token de dispositivo (FCM) específico 
+     * perteneciente al usuario autenticado.
+     */
+    Route::post('/devices/unregister', function (Request $request) {
+        
+        // 1. Validar que nos enviaron el token
+        $request->validate([
+            'fcm_token' => 'required|string',
+        ]);
+
+        // 2. Buscar y borrar el token SOLO para el usuario 
+        //    que está haciendo la petición.
+        $deletedCount = $request->user()->devices()
+                            ->where('fcm_token', $request->fcm_token)
+                            ->delete();
+        
+        if ($deletedCount > 0) {
+            Log::info("Dispositivo des-registrado para usuario: {$request->user()->id}");
+            return response()->json(['message' => 'Device unregistered successfully']);
+        }
+
+        Log::warning("Intento de des-registrar token no encontrado para usuario: {$request->user()->id}");
+        return response()->json(['message' => 'Token not found or already unregistered'], 404);
+        
+    });
     
     // --- Rutas solo para Admins ---
     Route::middleware('can:admin')->group(function () {
