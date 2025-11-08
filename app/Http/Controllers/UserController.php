@@ -15,19 +15,50 @@ class UserController extends Controller
      * GET /api/users
      * Muestra una lista de todos los usuarios (admin y staff).
      */
+    /**
+     * GET /api/users
+     * Muestra una lista de todos los usuarios activos.
+     */
     public function index()
     {
-        // Excluye a clientes si tuvieras un rol 'client'
+        // Solo usuarios NO eliminados (Soft Delete)
         $users = User::whereIn('role', ['admin', 'staff'])
                          ->orderBy('name')
                          ->get();
         return response()->json(['data' => $users]);
     }
 
+    /**
+     * GET /api/users/trashed
+     * Muestra una lista de usuarios eliminados (Soft Delete).
+     */
+    public function trashed()
+    {
+        // Solo usuarios eliminados
+        $trashedUsers = User::onlyTrashed()
+                            ->whereIn('role', ['admin', 'staff'])
+                            ->orderBy('deleted_at', 'desc')
+                            ->get();
+        return response()->json(['data' => $trashedUsers]);
+    }
+
     public function store(StoreUserRequest $request)
     {
         $validated = $request->validated();
+        $email = $validated['email'];
 
+        // 🎯 Verificación de Conflicto (Usuario en Papelera)
+        // Busca si el usuario existe pero está en soft-delete
+        $trashedUser = User::onlyTrashed()->where('email', $email)->first();
+
+        if ($trashedUser) {
+            // Devuelve 409 Conflict con los datos del usuario borrado
+            return response()->json([
+                'message' => 'El usuario existe pero está inactivo.',
+                'user' => $trashedUser
+            ], Response::HTTP_CONFLICT); // 409
+        }
+        
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -35,11 +66,9 @@ class UserController extends Controller
             'role' => $validated['role'], // admin o staff
         ]);
 
-        // 👇 CAMBIO SUGERIDO: Devolver el modelo completo
-        //    (como en show() y update()) para mantener consistencia.
         return response()->json([
             'data' => $user
-        ], Response::HTTP_CREATED); // Usar el import Response::HTTP_CREATED
+        ], Response::HTTP_CREATED); 
     }
 
     /**
@@ -86,6 +115,39 @@ class UserController extends Controller
         $user->delete(); 
         
         return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    // 🎯 NUEVO: POST /api/users/{id}/restore
+    /**
+     * Restaura un usuario que estaba en soft delete.
+     */
+    public function restore(int $id)
+    {
+        // Usamos withTrashed() para incluir los borrados
+        $user = User::withTrashed()->findOrFail($id);
+
+        if (!$user->trashed()) {
+            return response()->json(['message' => 'El usuario no necesita ser restaurado.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user->restore();
+
+        // Devolvemos el usuario restaurado para actualizar la lista en el cliente
+        return response()->json(['data' => $user->fresh()]);
+    }
+
+    // 🎯 NUEVO: DELETE /api/users/{id}/force-delete
+    /**
+     * Elimina permanentemente un usuario.
+     */
+    public function forceDelete(int $id)
+    {
+        // Solo puede ser eliminado permanentemente si está en la papelera
+        $user = User::onlyTrashed()->findOrFail($id);
+        
+        $user->forceDelete();
+
+        return response()->json(null, Response::HTTP_NO_CONTENT); // 204
     }
 }
 
