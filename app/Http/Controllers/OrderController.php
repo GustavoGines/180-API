@@ -194,6 +194,7 @@ class OrderController extends Controller
             $orderData['status'] = $validated['status'] ?? 'confirmed';
 
             // 7. Crear la orden
+            Log::info('🧱 Intentando crear orden con datos:', $orderData);
             $order = Order::create($orderData);
 
             // 8. Crear los items
