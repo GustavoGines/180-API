@@ -211,7 +211,9 @@ class OrderController extends Controller
                                 : null,
                     ];
                 }, $validated['items']);
-                $order->items()->create($itemData);
+                foreach ($itemsData as $itemData) { 
+                    $order->items()->create($itemData); // ✅ Inserción individual segura
+                }
             }
 
             // 9. Actualizar depósito
@@ -411,20 +413,25 @@ class OrderController extends Controller
             $order->items()->delete(); // Borra los items viejos de la BD
 
             if (isset($validated['items']) && is_array($validated['items'])) {
-                $itemsData = array_map(function ($item) {
-                    return [
-                        'name' => $item['name'],
-                        'qty' => $item['qty'],
-                        'base_price' => $item['base_price'],
-                        'adjustments' => $item['adjustments'] ?? 0,
-                        'customization_notes' => $item['customization_notes'] ?? null,
-                        'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                                ? $item['customization_json']
-                                                : null,
-                    ];
-                }, $validated['items']);
-                $order->items()->createMany($itemsData); // Crea los nuevos items
-            }
+                            $itemsDataToUpdate = array_map(function ($item) { // 👈 CAMBIO DE NOMBRE DE VARIABLE
+                            return [
+                            'name' => (string) $item['name'], // ✅ Asegurar que es string
+                            'qty' => $item['qty'],
+                            'base_price' => $item['base_price'],
+                            'adjustments' => $item['adjustments'] ?? 0,
+                            'customization_notes' => $item['customization_notes'] ?? null,
+                            // Forzar serialización (crucial)
+                            'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
+                            ? json_encode($item['customization_json'])
+                            : null,
+                            ];
+                            }, $validated['items']);
+                            
+                            // REEMPLAZAR $order->items()->createMany($itemsData);
+                            foreach ($itemsDataToUpdate as $itemData) {
+                                                $order->items()->create($itemData); // ✅ Inserción individual segura
+                                            }
+                            }
             
             // 8. Ejecutar el borrado de archivos de R2 (disco 's3')
             if (!empty($urlsToDelete)) {
