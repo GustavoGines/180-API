@@ -38,6 +38,10 @@ class OrderController extends Controller
 
     public function store(Request $request) // 👈 CAMBIO: Usa Request
     {
+        \Log::info('📦 order_payload recibido:', [
+            'raw' => $request->input('order_payload'),
+            'decoded' => json_decode($request->input('order_payload'), true),
+        ]);
         // 1. Obtener payload y archivos
         $payloadString = $request->input('order_payload');
         $validated = json_decode($payloadString, true) ?? [];
