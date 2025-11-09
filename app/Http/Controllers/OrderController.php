@@ -44,9 +44,21 @@ class OrderController extends Controller
         ]);
         // 1. Obtener payload y archivos
         $payloadString = $request->input('order_payload');
-        $validated = json_decode($payloadString, true) ?? [];
         $files = $request->file('files') ?? [];
-
+        
+        // 2️⃣ Decodificar según el formato que venga
+        if ($payloadString) {
+            $validated = json_decode($payloadString, true);
+        } elseif ($request->isJson()) {
+            $validated = $request->json()->all();
+        } else {
+            $validated = $request->all();
+        }
+        
+        // 3️⃣ Seguridad: si falla decodificación, forzar array vacío
+        if (!is_array($validated)) {
+            $validated = [];
+        }
         // 2. Validar el payload manualmente
         $validator = Validator::make($validated, [
             'client_id' => ['required', 'exists:clients,id'],
