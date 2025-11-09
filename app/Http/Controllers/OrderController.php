@@ -207,8 +207,8 @@ class OrderController extends Controller
                         'adjustments' => $item['adjustments'] ?? 0,
                         'customization_notes' => $item['customization_notes'] ?? null,
                         'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                                ? $item['customization_json']
-                                                : null,
+                                ? json_encode($item['customization_json']) // <--- ¡Añadir json_encode!
+                                : null,
                     ];
                 }, $validated['items']);
                 $order->items()->createMany($itemsData);
