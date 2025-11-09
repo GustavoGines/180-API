@@ -174,7 +174,7 @@ class OrderController extends Controller
 
         $order = null;
 
-        /*DB::transaction(function () use (&$order, $validated) {
+        DB::transaction(function () use (&$order, $validated) {
             // 5. Calcular el total (ahora $validated tiene las URLs correctas)
             $itemsTotal = 0.0;
             foreach ($validated['items'] as $item) {
@@ -229,7 +229,7 @@ class OrderController extends Controller
             }
 
             $order->save();
-        });*/
+        });
 
         return response()->json($order->load(['client', 'items']), Response::HTTP_CREATED);
     }
