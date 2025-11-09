@@ -211,7 +211,7 @@ class OrderController extends Controller
                                 : null,
                     ];
                 }, $validated['items']);
-                DB::table('order_items')->insert($itemsData);
+                $order->items()->create($itemData);
             }
 
             // 9. Actualizar depósito
