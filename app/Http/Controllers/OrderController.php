@@ -38,27 +38,11 @@ class OrderController extends Controller
 
     public function store(Request $request) // 👈 CAMBIO: Usa Request
     {
-        \Log::info('📦 order_payload recibido:', [
-            'raw' => $request->input('order_payload'),
-            'decoded' => json_decode($request->input('order_payload'), true),
-        ]);
         // 1. Obtener payload y archivos
         $payloadString = $request->input('order_payload');
+        $validated = json_decode($payloadString, true) ?? [];
         $files = $request->file('files') ?? [];
-        
-        // 2️⃣ Decodificar según el formato que venga
-        if ($payloadString) {
-            $validated = json_decode($payloadString, true);
-        } elseif ($request->isJson()) {
-            $validated = $request->json()->all();
-        } else {
-            $validated = $request->all();
-        }
-        
-        // 3️⃣ Seguridad: si falla decodificación, forzar array vacío
-        if (!is_array($validated)) {
-            $validated = [];
-        }
+
         // 2. Validar el payload manualmente
         $validator = Validator::make($validated, [
             'client_id' => ['required', 'exists:clients,id'],
@@ -194,7 +178,6 @@ class OrderController extends Controller
             $orderData['status'] = $validated['status'] ?? 'confirmed';
 
             // 7. Crear la orden
-            Log::info('🧱 Intentando crear orden con datos:', $orderData);
             $order = Order::create($orderData);
 
             // 8. Crear los items
@@ -207,13 +190,11 @@ class OrderController extends Controller
                         'adjustments' => $item['adjustments'] ?? 0,
                         'customization_notes' => $item['customization_notes'] ?? null,
                         'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                ? json_encode($item['customization_json']) // <--- ¡Añadir json_encode!
-                                : null,
+                                                ? $item['customization_json']
+                                                : null,
                     ];
                 }, $validated['items']);
-                foreach ($itemsData as $itemData) { 
-                    $order->items()->create($itemData); // ✅ Inserción individual segura
-                }
+                $order->items()->createMany($itemsData);
             }
 
             // 9. Actualizar depósito
@@ -413,25 +394,20 @@ class OrderController extends Controller
             $order->items()->delete(); // Borra los items viejos de la BD
 
             if (isset($validated['items']) && is_array($validated['items'])) {
-                            $itemsDataToUpdate = array_map(function ($item) { // 👈 CAMBIO DE NOMBRE DE VARIABLE
-                            return [
-                            'name' => (string) $item['name'], // ✅ Asegurar que es string
-                            'qty' => $item['qty'],
-                            'base_price' => $item['base_price'],
-                            'adjustments' => $item['adjustments'] ?? 0,
-                            'customization_notes' => $item['customization_notes'] ?? null,
-                            // Forzar serialización (crucial)
-                            'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                            ? json_encode($item['customization_json'])
-                            : null,
-                            ];
-                            }, $validated['items']);
-                            
-                            // REEMPLAZAR $order->items()->createMany($itemsData);
-                            foreach ($itemsDataToUpdate as $itemData) {
-                                                $order->items()->create($itemData); // ✅ Inserción individual segura
-                                            }
-                            }
+                $itemsData = array_map(function ($item) {
+                    return [
+                        'name' => $item['name'],
+                        'qty' => $item['qty'],
+                        'base_price' => $item['base_price'],
+                        'adjustments' => $item['adjustments'] ?? 0,
+                        'customization_notes' => $item['customization_notes'] ?? null,
+                        'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
+                                                ? $item['customization_json']
+                                                : null,
+                    ];
+                }, $validated['items']);
+                $order->items()->createMany($itemsData); // Crea los nuevos items
+            }
             
             // 8. Ejecutar el borrado de archivos de R2 (disco 's3')
             if (!empty($urlsToDelete)) {
