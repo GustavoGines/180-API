@@ -25,7 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
+        // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
+
+        // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
 
         Carbon::serializeUsing(function (Carbon $c) {
             return $c->setTimezone(config('app.timezone', 'America/Argentina/Buenos_Aires'))
@@ -39,8 +41,8 @@ class AppServiceProvider extends ServiceProvider
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000'); // <-- Ponemos un valor por defecto para pruebas locales
-    
-            return $frontendUrl . '?email=' . $notifiable->getEmailForPasswordReset() . '&token=' . $token;
+
+            return $frontendUrl.'?email='.$notifiable->getEmailForPasswordReset().'&token='.$token;
         });
 
         Gate::define('admin', function (User $user) {
@@ -51,6 +53,6 @@ class AppServiceProvider extends ServiceProvider
             // Permite la acción si el rol del usuario es 'admin' o 'staff'
             return in_array($user->role, ['admin', 'staff']);
         });
-        
+
     }
 }
