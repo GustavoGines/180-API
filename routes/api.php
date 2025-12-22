@@ -116,8 +116,13 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // --- Rutas solo para Admins ---
     Route::middleware('can:admin')->group(function () {
-        // Esto crea automáticamente las 5 rutas del CRUD
-        // (index, store, show, update, destroy)
+
+        // 🎯 NUEVAS RUTAS DE GESTIÓN DE PAPELETA (USERS)
+        Route::get('/users/trashed', [UserController::class, 'trashed']);
+        Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+        Route::delete('/users/{id}/force-delete', [UserController::class, 'forceDelete']);
+
+        // Esto crea automáticamente las 5 rutas del CRUD (index, store, show, update, destroy)
         Route::apiResource('users', UserController::class);
     });
 
