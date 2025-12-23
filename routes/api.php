@@ -1,12 +1,13 @@
 <?php
 
+use App\Http\Controllers\AdminCatalogController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\ClientAddressController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ClientAddressController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -39,6 +40,8 @@ Route::post('/auth/token', function (Request $request) {
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('guest')->name('password.email');
 Route::post('/reset-password', [NewPasswordController::class, 'store'])->middleware('guest')->name('password.store');
 
+// Catálogo Público
+Route::get('/catalog', [\App\Http\Controllers\CatalogController::class, 'index']);
 
 /*
 |--------------------------------------------------------------------------
@@ -46,10 +49,10 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])->middlew
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // --- Usuario ---
-    Route::get('/user', fn(Request $request) => $request->user());
-    Route::get('/me', fn() => auth()->user());
+    Route::get('/user', fn (Request $request) => $request->user());
+    Route::get('/me', fn () => auth()->user());
 
     // --- Clientes ---
     Route::get('/clients/trashed', [ClientController::class, 'trashed']);
@@ -77,7 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::put('/orders/{order}', [OrderController::class, 'update']);
     Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
-    
+
     // --- Estado del pedido---
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 
@@ -88,32 +91,34 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices/register', [DeviceController::class, 'store']);
 
     /**
-     * Elimina un token de dispositivo (FCM) específico 
+     * Elimina un token de dispositivo (FCM) específico
      * perteneciente al usuario autenticado.
      */
     Route::post('/devices/unregister', function (Request $request) {
-        
+
         // 1. Validar que nos enviaron el token
         $request->validate([
             'fcm_token' => 'required|string',
         ]);
 
-        // 2. Buscar y borrar el token SOLO para el usuario 
+        // 2. Buscar y borrar el token SOLO para el usuario
         //    que está haciendo la petición.
         $deletedCount = $request->user()->devices()
-                            ->where('fcm_token', $request->fcm_token)
-                            ->delete();
-        
+            ->where('fcm_token', $request->fcm_token)
+            ->delete();
+
         if ($deletedCount > 0) {
             Log::info("Dispositivo des-registrado para usuario: {$request->user()->id}");
+
             return response()->json(['message' => 'Device unregistered successfully']);
         }
 
         Log::warning("Intento de des-registrar token no encontrado para usuario: {$request->user()->id}");
+
         return response()->json(['message' => 'Token not found or already unregistered'], 404);
-        
+
     });
-    
+
     // --- Rutas solo para Admins ---
     Route::middleware('can:admin')->group(function () {
 
@@ -124,9 +129,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Esto crea automáticamente las 5 rutas del CRUD (index, store, show, update, destroy)
         Route::apiResource('users', UserController::class);
+        // --- ADMIN CATALOG ROUTES ---
+        Route::post('/admin/products', [AdminCatalogController::class, 'storeProduct']);
+        Route::put('/admin/products/{id}', [AdminCatalogController::class, 'updateProduct']);
+        Route::delete('/admin/products/{id}', [AdminCatalogController::class, 'destroyProduct']);
+
+        Route::post('/admin/fillings', [AdminCatalogController::class, 'storeFilling']);
+        Route::put('/admin/fillings/{id}', [AdminCatalogController::class, 'updateFilling']);
+        Route::delete('/admin/fillings/{id}', [AdminCatalogController::class, 'destroyFilling']);
+
+        Route::post('/admin/extras', [AdminCatalogController::class, 'storeExtra']);
+        Route::put('/admin/extras/{id}', [AdminCatalogController::class, 'updateExtra']);
+        Route::delete('/admin/extras/{id}', [AdminCatalogController::class, 'destroyExtra']); // END ADMIN CATALOG ROUTES
     });
 
     Route::get('/ping', function () {
-    return response()->json(['status' => 'ok']);
-});
+        return response()->json(['status' => 'ok']);
+    });
 });

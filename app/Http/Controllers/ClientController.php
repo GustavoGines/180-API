@@ -7,7 +7,6 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
-
 class ClientController extends Controller
 {
     /**
@@ -20,26 +19,26 @@ class ClientController extends Controller
 
         $clients = Client::query()
             ->when($searchQuery, function ($builder) use ($searchQuery) {
-                
+
                 // 1. Separa la búsqueda en palabras (ej: "Gus Bog")
                 $searchTerms = explode(' ', $searchQuery);
 
                 // 2. Itera sobre cada palabra y exige que CADA palabra
                 //    esté en ALGUNAS de las columnas.
                 return $builder->where(function ($subQuery) use ($searchTerms) {
-                    
+
                     foreach ($searchTerms as $term) {
                         $term = trim($term);
-                        if (!empty($term)) {
+                        if (! empty($term)) {
                             // 3. Prepara el término para LIKE (con unaccent)
-                            $likeTerm = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%'; 
+                            $likeTerm = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%';
 
                             // 4. Exige que CADA término ($term) exista en alguna parte
                             $subQuery->where(function ($wordQuery) use ($likeTerm) {
                                 // Usa ILIKE (ignora mayús/min) y unaccent (ignora acentos)
                                 $wordQuery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$likeTerm])
-                                          ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$likeTerm])
-                                          ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$likeTerm]);
+                                    ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$likeTerm])
+                                    ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$likeTerm]);
                             });
                         }
                     }
@@ -48,7 +47,9 @@ class ClientController extends Controller
             ->orderBy('name')
             // 5. Mantenemos 'paginate' porque tu app de Flutter (ClientsRepository)
             //    está esperando una respuesta paginada ('data' => [...])
-            ->paginate(20);
+            // 5. Aumentamos el límite de paginación para mostrar más resultados
+            // según requerimiento de "ver todos los clientes"
+            ->paginate(500);
 
         return response()->json($clients);
     }
@@ -60,10 +61,10 @@ class ClientController extends Controller
     public function store(StoreClientRequest $request)
     {
         $validated = $request->validated();
-        
+
         // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
-        
+
         if (isset($validated['phone'])) {
             $validated['phone'] = $this->normalizePhone($validated['phone']);
         }
@@ -78,18 +79,18 @@ class ClientController extends Controller
             if ($existingClient->trashed()) {
                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe en la papelera.',
-                    'client' => $existingClient
+                    'client' => $existingClient,
                 ], Response::HTTP_CONFLICT); // 409
             } else {
                 return response()->json([
-                    'message' => 'Un cliente con este nombre ya existe.'
+                    'message' => 'Un cliente con este nombre ya existe.',
                 ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
             }
         }
 
         // 3. CREA: Usa el array $validated que ya tiene el teléfono normalizado.
         $client = Client::create($validated);
-        
+
         return response()->json(['data' => $client], Response::HTTP_CREATED);
     }
 
@@ -110,10 +111,10 @@ class ClientController extends Controller
     public function update(StoreClientRequest $request, Client $client)
     {
         $validated = $request->validated();
-        
+
         // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
-        
+
         if (isset($validated['phone'])) {
             $validated['phone'] = $this->normalizePhone($validated['phone']);
         }
@@ -123,7 +124,7 @@ class ClientController extends Controller
         $existingClient = Client::withTrashed()
             ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
             // Solo busca conflictos si el ID encontrado es DIFERENTE al actual
-            ->where('id', '!=', $client->id) 
+            ->where('id', '!=', $client->id)
             ->first();
 
         // 3. MANEJA CONFLICTOS (Idéntico a store)
@@ -131,15 +132,15 @@ class ClientController extends Controller
             if ($existingClient->trashed()) {
                 return response()->json([
                     'message' => 'Otro cliente con este nombre ya existe en la papelera.',
-                    'client' => $existingClient
+                    'client' => $existingClient,
                 ], Response::HTTP_CONFLICT); // 409
             } else {
                 return response()->json([
-                    'message' => 'Otro cliente con este nombre ya existe.'
+                    'message' => 'Otro cliente con este nombre ya existe.',
                 ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
             }
         }
-        
+
         // 4. ACTUALIZA: Usamos el array $validated que ya contiene los datos normalizados.
         $client->update($validated);
 
@@ -149,7 +150,7 @@ class ClientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Client $client) 
+    public function destroy(Client $client)
     {
         // Aquí podrías añadir validaciones (ej. no borrar si tiene pedidos)
         // if ($client->orders()->exists()) {
@@ -170,6 +171,7 @@ class ClientController extends Controller
     {
         // Busca solo los clientes que están en la papelera
         $trashedClients = Client::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
+
         return response()->json(['data' => $trashedClients]);
     }
 
@@ -181,15 +183,16 @@ class ClientController extends Controller
     {
         $client = Client::withTrashed()->find($id);
 
-        if (!$client) {
+        if (! $client) {
             return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND); // 404
         }
 
-        if (!$client->trashed()) {
+        if (! $client->trashed()) {
             return response()->json(['message' => 'El cliente no está eliminado'], Response::HTTP_BAD_REQUEST); // 400
         }
 
         $client->restore();
+
         return response()->json(['data' => $client]); // Devuelve el cliente restaurado
     }
 
@@ -202,7 +205,7 @@ class ClientController extends Controller
         // 1. Buscamos al cliente INCLUYENDO los de la papelera
         $client = Client::withTrashed()->find($id);
 
-        if (!$client) {
+        if (! $client) {
             return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND);
         }
 
@@ -210,7 +213,7 @@ class ClientController extends Controller
         // NO DEBERÍAS borrar permanentemente un cliente con historial de ventas.
         if ($client->orders()->exists()) {
             return response()->json([
-                'message' => '¡Conflicto! Este cliente tiene pedidos asociados y no puede ser eliminado permanentemente.'
+                'message' => '¡Conflicto! Este cliente tiene pedidos asociados y no puede ser eliminado permanentemente.',
             ], Response::HTTP_CONFLICT); // 409
         }
 
@@ -241,23 +244,23 @@ class ClientController extends Controller
 
         // 3. Si empieza con 549, le añadimos el '+'
         if (str_starts_with($normalized, '549')) {
-             return '+' . $normalized;
+            return '+'.$normalized;
         }
 
         // 4. Si empieza con 0 o 15, intentamos eliminar prefijos locales de llamadas.
         // Esto es crucial para los números sacados de la agenda (que a menudo tienen 15 o 0).
         if (str_starts_with($normalized, '0') || str_starts_with($normalized, '15')) {
-             $normalized = ltrim($normalized, '0');
-             $normalized = ltrim($normalized, '15');
+            $normalized = ltrim($normalized, '0');
+            $normalized = ltrim($normalized, '15');
         }
 
         // 5. Si ahora tiene la longitud típica de un número móvil argentino (ej: 10 dígitos o similar),
         // y NO tiene código de país, le agregamos el código +549.
         // Nota: Esto es una simplificación y es mejor que el número siempre esté en el formato +549 en la BD.
-        if (strlen($normalized) >= 10 && strlen($normalized) <= 12 && !str_starts_with($normalized, '54')) {
-            return '+549' . $normalized;
+        if (strlen($normalized) >= 10 && strlen($normalized) <= 12 && ! str_starts_with($normalized, '54')) {
+            return '+549'.$normalized;
         }
-        
+
         // Fallback: Devolvemos el número tal cual, limpio de caracteres
         return $normalized;
     }
