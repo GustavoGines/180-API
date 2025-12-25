@@ -12,12 +12,14 @@ class Order extends Model
     protected $fillable = [
         'client_id', 'event_date', 'start_time', 'end_time', 'status',
         'total', 'deposit', 'delivery_cost', 'notes', 'google_event_id', 'client_address_id',
+        'is_paid',
     ];
 
     protected $casts = [
         'event_date' => 'date',
         'start_time' => 'datetime:H:i',
         'end_time' => 'datetime:H:i',
+        'is_paid' => 'boolean',
     ];
 
     public function client()
