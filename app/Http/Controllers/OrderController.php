@@ -60,6 +60,7 @@ class OrderController extends Controller
             'start_time' => ['required','date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],
             'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'is_paid' => ['nullable', 'boolean'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
@@ -176,6 +177,8 @@ class OrderController extends Controller
             $orderData['total'] = $calculatedGrandTotal;
             $orderData['deposit'] = 0;
             $orderData['status'] = $validated['status'] ?? 'confirmed';
+            // Si viene is_paid, usarlo, si no false.
+            $orderData['is_paid'] = $validated['is_paid'] ?? false;
 
             // 7. Crear la orden
             $order = Order::create($orderData);
@@ -450,6 +453,7 @@ class OrderController extends Controller
 
         $validated = $request->validate([
             'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'is_paid' => ['sometimes', 'boolean'], // Permitir actualizar solo el flag
             'is_fully_paid' => ['sometimes', 'required_without:status', 'boolean', 'accepted'],
         ]);
 
@@ -457,6 +461,11 @@ class OrderController extends Controller
 
         if (isset($validated['status'])) {
             $order->status = $validated['status'];
+            $updated = true;
+        }
+
+        if (isset($validated['is_paid'])) {
+            $order->is_paid = $validated['is_paid'];
             $updated = true;
         }
 
