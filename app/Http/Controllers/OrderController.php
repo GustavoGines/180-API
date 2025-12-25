@@ -513,6 +513,31 @@ class OrderController extends Controller
         return response()->json($order->fresh(['client', 'items']));
     }
 
+    public function markAsUnpaid(Request $request, Order $order)
+    {
+        if (! Gate::allows('manage-orders')) {
+            abort(403, 'No tienes permiso para realizar esta acción.');
+        }
+
+        $order->is_paid = false;
+        // Si el depósito es igual al total, lo reseteamos a 0 asumiendo que fue marcado como pagado automáticamente.
+        // Si es un pago parcial, no tocamos el depósito (aunque 'markAsPaid' lo hubiera sobrescrito, aquí no podemos saber el valor anterior).
+        // Por seguridad en flujo "unmark", reseteamos si parece pagado total.
+        if ($order->deposit >= $order->total) {
+            $order->deposit = 0;
+        }
+
+        $order->save();
+
+        try {
+            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
+        } catch (\Exception $e) {
+            Log::error("Error al actualizar evento GC (unmark-paid) {$order->id}: ".$e->getMessage());
+        }
+
+        return response()->json($order->fresh(['client', 'items']));
+    }
+
     public function destroy(Order $order)
     {
         if (! Gate::allows('manage-orders')) {
