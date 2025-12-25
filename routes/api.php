@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Para marcar como pagado totalmente
     Route::patch('/orders/{order}/mark-paid', [OrderController::class, 'markAsPaid']);
+    Route::patch('/orders/{order}/mark-unpaid', [OrderController::class, 'markAsUnpaid']);
 
     // --- Dispositivos (FCM) ---
     Route::post('/devices/register', [DeviceController::class, 'store']);
