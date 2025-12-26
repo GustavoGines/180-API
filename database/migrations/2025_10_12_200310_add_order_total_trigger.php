@@ -10,8 +10,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // 1) Función que recalcula total de un pedido
-        DB::unprepared(<<<'SQL'
+        if (DB::getDriverName() !== 'sqlite') {
+            // 1) Función que recalcula total de un pedido
+            DB::unprepared(<<<'SQL'
          CREATE OR REPLACE FUNCTION update_order_total(p_order_id BIGINT)
          RETURNS VOID AS $$
          BEGIN
@@ -27,8 +28,8 @@ return new class extends Migration
          $$ LANGUAGE plpgsql;
         SQL);
 
-        // 2) Triggers en INSERT/UPDATE/DELETE de order_items
-        DB::unprepared(<<<'SQL'
+            // 2) Triggers en INSERT/UPDATE/DELETE de order_items
+            DB::unprepared(<<<'SQL'
          CREATE OR REPLACE FUNCTION trg_order_items_after_change()
          RETURNS TRIGGER AS $$
          DECLARE
@@ -52,12 +53,13 @@ return new class extends Migration
          FOR EACH ROW EXECUTE FUNCTION trg_order_items_after_change();
         SQL);
 
-        // (Opcional) constraint: depósito <= total (evita incoherencias)
-        DB::unprepared(<<<'SQL'
+            // (Opcional) constraint: depósito <= total (evita incoherencias)
+            DB::unprepared(<<<'SQL'
          ALTER TABLE orders
          ADD CONSTRAINT deposit_not_greater_than_total
          CHECK (deposit IS NULL OR deposit <= total);
         SQL);
+        }
     }
 
     /**
@@ -65,9 +67,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::unprepared('ALTER TABLE orders DROP CONSTRAINT IF EXISTS deposit_not_greater_than_total;');
-        DB::unprepared('DROP TRIGGER IF EXISTS trg_order_items_after_insupddel ON order_items;');
-        DB::unprepared('DROP FUNCTION IF EXISTS trg_order_items_after_change();');
-        DB::unprepared('DROP FUNCTION IF EXISTS update_order_total(BIGINT);');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::unprepared('ALTER TABLE orders DROP CONSTRAINT IF EXISTS deposit_not_greater_than_total;');
+            DB::unprepared('DROP TRIGGER IF EXISTS trg_order_items_after_insupddel ON order_items;');
+            DB::unprepared('DROP FUNCTION IF EXISTS trg_order_items_after_change();');
+            DB::unprepared('DROP FUNCTION IF EXISTS update_order_total(BIGINT);');
+        }
     }
 };

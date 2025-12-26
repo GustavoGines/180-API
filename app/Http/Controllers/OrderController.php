@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
-use App\Services\GoogleCalendarService;
+use App\Services\GoogleCalendarService; // ✅ Importación explícita
+// ✅ Importación explícita
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
@@ -11,8 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
@@ -36,111 +37,13 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
-    public function store(Request $request) // 👈 CAMBIO: Usa Request
+    public function store(StoreOrderRequest $request)
     {
-        // 1. Obtener payload y archivos
-        $payloadString = $request->input('order_payload');
-        $validated = json_decode($payloadString, true) ?? [];
+        // 1. Obtener datos validados (ya procesados por StoreOrderRequest)
+        $validated = $request->validated();
         $files = $request->file('files') ?? [];
 
-        // 2. Validar el payload manualmente
-        $validator = Validator::make($validated, [
-            'client_id' => ['required', 'exists:clients,id'],
-            'client_address_id' => [
-                'nullable',
-                'integer',
-                Rule::requiredIf(function () use ($validated) {
-                    return ($validated['delivery_cost'] ?? 0) > 0;
-                }),
-                Rule::exists('client_addresses', 'id')->where(function ($query) use ($validated) {
-                    return $query->where('client_id', $validated['client_id'] ?? null);
-                }),
-            ],
-            'event_date' => ['required', 'date_format:Y-m-d'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i'],
-            'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
-            'is_paid' => ['nullable', 'boolean'],
-            'deposit' => ['nullable', 'numeric', 'min:0'],
-            'delivery_cost' => ['nullable', 'numeric', 'min:0'],
-            'notes' => ['nullable', 'string'],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.name' => ['required', 'string', 'max:191'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
-            'items.*.base_price' => ['required', 'numeric', 'min:0'],
-            'items.*.adjustments' => ['nullable', 'numeric'],
-            'items.*.customization_notes' => ['nullable', 'string'],
-            'items.*.customization_json' => ['nullable', 'array'],
-        ]);
-
-        // 3. Añadir validación 'after' (la que tenías en StoreOrderRequest)
-        $validator->after(function ($validator) use ($validated) {
-            // 1. Validación de Hora (¡CORREGIDA!)
-            $date = $validated['event_date'] ?? null;
-            $start = $validated['start_time'] ?? null;
-            $end = $validated['end_time'] ?? null;
-
-            if ($date && $start && $end) {
-                try {
-                    // Usamos Carbon (nativo en Laravel) para parsear las fechas
-                    $eventDate = \Carbon\Carbon::parse($date, config('app.timezone'));
-                    $startTime = $eventDate->copy()->setTimeFromTimeString($start);
-                    $endTime = $eventDate->copy()->setTimeFromTimeString($end);
-
-                    // ✅ LA MAGIA: Si la hora de fin es menor, asume que es el día siguiente
-                    if ($endTime->lt($startTime)) {
-                        $endTime->addDay();
-                    }
-
-                    // Validación final
-                    if ($endTime->lte($startTime)) {
-                        $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
-                    }
-                } catch (\Exception $e) {
-                    $validator->errors()->add('event_date', 'Formato de fecha u hora inválido.');
-                }
-            }
-
-            // 2. Validación de Depósito (se mantiene igual)
-            $items = $validated['items'] ?? [];
-            $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
-            if (is_array($items) && ! empty($items)) {
-                $calculatedItemsTotal = 0.0;
-                foreach ($items as $key => $item) {
-                    $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
-                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0;
-                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0;
-                    if ($qty <= 0 || $basePrice < 0) {
-                        $validator->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
-
-                        continue;
-                    }
-                    $finalUnitPrice = $basePrice + $adjustments;
-                    if ($finalUnitPrice < 0) {
-                        $validator->errors()->add("items.$key", 'El precio final del ítem no puede ser negativo.');
-
-                        continue;
-                    }
-                    $calculatedItemsTotal += $qty * $finalUnitPrice;
-                }
-                if (! $validator->errors()->has('items.*')) {
-                    $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
-                    $deposit = (float) ($validated['deposit'] ?? 0);
-                    $epsilon = 0.01; // Pequeña tolerancia para flotantes
-                    if ($deposit > ($calculatedGrandTotal + $epsilon)) {
-                        $validator->errors()->add('deposit', 'El depósito no puede ser mayor al total.');
-                    }
-                }
-            } elseif (($validated['deposit'] ?? 0) > 0) {
-                $validator->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos.');
-            }
-        });
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // 4. Lógica para reemplazar Placeholders
+        // 4. Lógica para reemplazar Placeholders (Sigue siendo necesaria aquí)
         foreach ($validated['items'] as &$item) { // '&' (por referencia)
             if (isset($item['customization_json']['photo_urls']) && is_array($item['customization_json']['photo_urls'])) {
                 $newUrls = [];
@@ -227,103 +130,15 @@ class OrderController extends Controller
         return response()->json($order);
     }
 
-    public function update(Request $request, Order $order) // 👈 CAMBIO: Usa Request
+    public function update(UpdateOrderRequest $request, Order $order)
     {
         if (! Gate::allows('manage-orders')) {
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
 
-        // 1. Obtener payload y archivos
-        $payloadString = $request->input('order_payload');
-        $validated = json_decode($payloadString, true) ?? [];
+        // 1. Obtener datos validados
+        $validated = $request->validated();
         $files = $request->file('files') ?? [];
-
-        // 2. Validar el payload manualmente
-        $validator = Validator::make($validated, [
-            'client_id' => ['required', 'exists:clients,id'],
-            'client_address_id' => [
-                'nullable',
-                'integer',
-                Rule::requiredIf(function () use ($validated) {
-                    return ($validated['delivery_cost'] ?? 0) > 0;
-                }),
-                Rule::exists('client_addresses', 'id')->where(function ($query) use ($validated) {
-                    return $query->where('client_id', $validated['client_id'] ?? null);
-                }),
-            ],
-            'event_date' => ['required', 'date_format:Y-m-d'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i'],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.name' => ['required', 'string', 'max:191'],
-        ]);
-
-        // 3. Añadir validación 'after'
-        $validator->after(function ($validator) use ($validated) {
-            // 1. Validación de Hora (¡CORREGIDA!)
-            $date = $validated['event_date'] ?? null;
-            $start = $validated['start_time'] ?? null;
-            $end = $validated['end_time'] ?? null;
-
-            if ($date && $start && $end) {
-                try {
-                    // Usamos Carbon (nativo en Laravel) para parsear las fechas
-                    $eventDate = \Carbon\Carbon::parse($date, config('app.timezone'));
-                    $startTime = $eventDate->copy()->setTimeFromTimeString($start);
-                    $endTime = $eventDate->copy()->setTimeFromTimeString($end);
-
-                    // ✅ LA MAGIA: Si la hora de fin es menor, asume que es el día siguiente
-                    if ($endTime->lt($startTime)) {
-                        $endTime->addDay();
-                    }
-
-                    // Validación final
-                    if ($endTime->lte($startTime)) {
-                        $validator->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
-                    }
-                } catch (\Exception $e) {
-                    $validator->errors()->add('event_date', 'Formato de fecha u hora inválido.');
-                }
-            }
-
-            // 2. Validación de Depósito (se mantiene igual)
-            $items = $validated['items'] ?? [];
-            $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
-            if (is_array($items) && ! empty($items)) {
-                $calculatedItemsTotal = 0.0;
-                foreach ($items as $key => $item) {
-                    $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
-                    $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0;
-                    $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0;
-                    if ($qty <= 0 || $basePrice < 0) {
-                        $validator->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
-
-                        continue;
-                    }
-                    $finalUnitPrice = $basePrice + $adjustments;
-                    if ($finalUnitPrice < 0) {
-                        $validator->errors()->add("items.$key", 'El precio final del ítem no puede ser negativo.');
-
-                        continue;
-                    }
-                    $calculatedItemsTotal += $qty * $finalUnitPrice;
-                }
-                if (! $validator->errors()->has('items.*')) {
-                    $calculatedGrandTotal = $calculatedItemsTotal + $deliveryCost;
-                    $deposit = (float) ($validated['deposit'] ?? 0);
-                    $epsilon = 0.01;
-                    if ($deposit > ($calculatedGrandTotal + $epsilon)) {
-                        $validator->errors()->add('deposit', 'El depósito no puede ser mayor al total.');
-                    }
-                }
-            } elseif (($validated['deposit'] ?? 0) > 0) {
-                $validator->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos.');
-            }
-        });
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
 
         DB::transaction(function () use ($validated, $order, $files) {
 

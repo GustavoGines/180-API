@@ -23,11 +23,13 @@ return new class extends Migration
         });
 
         // Unicidad por teléfono NORMALIZADO (solo dígitos), permitiendo NULL
-        DB::statement("
-            CREATE UNIQUE INDEX clients_phone_norm_unique
-            ON clients (regexp_replace(phone, '[^0-9]+', '', 'g'))
-            WHERE phone IS NOT NULL
-        ");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                CREATE UNIQUE INDEX clients_phone_norm_unique
+                ON clients (regexp_replace(phone, '[^0-9]+', '', 'g'))
+                WHERE phone IS NOT NULL
+            ");
+        }
 
         // Unicidad case-insensitive de email, permitiendo NULL
         DB::statement('
@@ -41,7 +43,9 @@ return new class extends Migration
     {
         // Los índices se borran automáticamente al dropear la tabla,
         // pero si querés ser explícito:
-        DB::statement('DROP INDEX IF EXISTS clients_phone_norm_unique');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('DROP INDEX IF EXISTS clients_phone_norm_unique');
+        }
         DB::statement('DROP INDEX IF EXISTS clients_email_ci_unique');
 
         Schema::dropIfExists('clients');

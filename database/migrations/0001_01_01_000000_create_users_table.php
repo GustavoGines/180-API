@@ -20,10 +20,12 @@ return new class extends Migration
             $table->timestampsTz();                         // created_at / updated_at con TZ
         });
 
-        // ✅ Constraint de rol (PostgreSQL)
-        DB::statement("ALTER TABLE users
-            ADD CONSTRAINT users_role_chk
-            CHECK (role IN ('admin','staff'))");
+        // ✅ Constraint de rol (PostgreSQL) -> SQLite skipped
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE users
+                ADD CONSTRAINT users_role_chk
+                CHECK (role IN ('admin','staff'))");
+        }
 
         // ✅ Unicidad case-insensitive en email
         DB::statement('CREATE UNIQUE INDEX users_email_ci_unique ON users (LOWER(email))');
@@ -57,7 +59,9 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS users_email_ci_unique');
         DB::statement('DROP INDEX IF EXISTS users_role_idx');
         DB::statement('DROP INDEX IF EXISTS users_created_idx');
-        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk');
+        }
 
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
