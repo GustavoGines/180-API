@@ -29,15 +29,13 @@ class AppServiceProvider extends ServiceProvider
 
         // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
 
-        Carbon::serializeUsing(function (Carbon $c) {
-            return $c->setTimezone(config('app.timezone', 'America/Argentina/Buenos_Aires'))
-                ->format('Y-m-d\TH:i:sP'); // ej: 2025-10-12T19:45:48-03:00
-        });
-
-        CarbonImmutable::serializeUsing(function (CarbonImmutable $c) {
+        $dateSerializer = function ($c) {
             return $c->setTimezone(config('app.timezone', 'America/Argentina/Buenos_Aires'))
                 ->format('Y-m-d\TH:i:sP');
-        });
+        };
+
+        Carbon::serializeUsing($dateSerializer);
+        CarbonImmutable::serializeUsing($dateSerializer);
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000'); // <-- Ponemos un valor por defecto para pruebas locales
