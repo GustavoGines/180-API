@@ -1,35 +1,27 @@
-<?php
+use App\Http\Resources\ExtraResource;
+use App\Http\Resources\FillingResource;
+use App\Http\Resources\ProductResource;
 
-namespace App\Http\Controllers;
+// ...
 
-use App\Models\Extra;
-use App\Models\Filling;
-use App\Models\Product;
-
-class CatalogController extends Controller
-{
-    /**
-     * Retorna el catálogo completo para la app.
-     * Incluye Productos, Rellenos y Extras activos.
-     */
     public function index()
     {
         // 1. Productos Activos con sus Variantes
         $products = Product::where('is_active', true)
-            ->orderBy('name', 'asc') // Alfabético
+            ->orderBy('name', 'asc')
             ->with(['variants' => function ($q) {
-                $q->orderBy('variant_name', 'asc'); // Variantes también ordenadas
+                $q->orderBy('variant_name', 'asc');
             }])
             ->get();
 
         // 2. Rellenos Activos
         $fillings = Filling::where('is_active', true)
-            ->orderBy('name', 'asc') // Alfabético
+            ->orderBy('name', 'asc')
             ->get();
 
         // 3. Extras Activos
         $extras = Extra::where('is_active', true)
-            ->orderBy('name', 'asc') // Alfabético
+            ->orderBy('name', 'asc')
             ->get();
 
         return response()->json([
@@ -37,11 +29,12 @@ class CatalogController extends Controller
                 'timestamp' => now()->toIso8601String(),
                 'version' => '1.0',
             ],
+            // ⚠️ IMPORTANTE: 'data' sigue siendo el objeto raíz que contiene las listas.
+            // Pero cada lista ahora usa su Resource::collection()
             'data' => [
-                'products' => $products,
-                'fillings' => $fillings,
-                'extras' => $extras,
+                'products' => ProductResource::collection($products)->resolve(),
+                'fillings' => FillingResource::collection($fillings)->resolve(),
+                'extras' => ExtraResource::collection($extras)->resolve(),
             ],
         ]);
     }
-}
