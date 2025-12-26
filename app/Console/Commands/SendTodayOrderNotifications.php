@@ -2,26 +2,24 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Order;
 use App\Models\Device;
-use App\Models\User;
+use App\Models\Order;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
 class SendTodayOrderNotifications extends Command
 {
     protected $signature = 'app:send-today-notifications';
+
     protected $description = 'Envía un recordatorio matutino para todos los pedidos del día actual.';
 
     protected $messaging;
 
-    public function __construct(Messaging $messaging)
+    public function __construct()
     {
         parent::__construct();
-        $this->messaging = $messaging;
     }
 
     public function handle()
@@ -39,6 +37,7 @@ class SendTodayOrderNotifications extends Command
 
         if ($orders->isEmpty()) {
             $this->info('No se encontraron pedidos para hoy.');
+
             return 0;
         }
 
@@ -51,6 +50,7 @@ class SendTodayOrderNotifications extends Command
 
         if ($adminAndStaffTokens->isEmpty()) {
             $this->info('No hay dispositivos de admin/staff registrados para notificar.');
+
             return 0;
         }
 
@@ -58,8 +58,9 @@ class SendTodayOrderNotifications extends Command
 
         // 4. Iterar y enviar notificaciones
         foreach ($orders as $order) {
-            if (!$order->client) {
+            if (! $order->client) {
                 Log::warning("Pedido #{$order->id} (de hoy) sin cliente asignado.");
+
                 continue;
             }
 
@@ -73,6 +74,7 @@ class SendTodayOrderNotifications extends Command
         }
 
         $this->info('✅ Recordatorios de HOY enviados.');
+
         return 0;
     }
 
@@ -80,25 +82,25 @@ class SendTodayOrderNotifications extends Command
     {
         try {
             $notification = Notification::create($title, $body);
-            
+
             $message = CloudMessage::withTarget('token', $fcmToken)
                 ->withNotification($notification)
                 // ✅ CAMBIO: Adjuntar el payload de datos
                 ->withData([
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK', // ID estándar para Android
                     'type' => 'order_detail', // Un tipo custom para que tu app sepa qué hacer
-                    'orderId' => (string)$orderId, // ¡El ID del pedido! (debe ser string)
+                    'orderId' => (string) $orderId, // ¡El ID del pedido! (debe ser string)
                 ]);
-                
+
             $this->messaging->send($message);
 
         } catch (\Kreait\Firebase\Exception\Messaging\InvalidMessage $e) {
-            Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: " . $e->getMessage());
+            Log::error("Error de FCM (Mensaje Inválido) para token {$fcmToken}: ".$e->getMessage());
         } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
             Log::warning("Token FCM no encontrado, se debería borrar: {$fcmToken}");
             Device::where('fcm_token', $fcmToken)->delete();
         } catch (\Exception $e) {
-            Log::error("Error genérico al enviar FCM a token {$fcmToken}: " . $e->getMessage());
+            Log::error("Error genérico al enviar FCM a token {$fcmToken}: ".$e->getMessage());
         }
     }
 }
