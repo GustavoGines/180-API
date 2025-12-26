@@ -20,6 +20,13 @@ class OrderTest extends TestCase
         // Forzamos que sea admin para pasar el Gate 'manage-orders'
         $user = User::factory()->create(['role' => 'admin']);
         Sanctum::actingAs($user, ['manage-orders']);
+
+        // Mockear GoogleCalendarService para evitar errores de credenciales en CI
+        $this->mock(\App\Services\GoogleCalendarService::class, function ($mock) {
+            $mock->shouldReceive('createFromOrder')->andReturn('mock_event_id');
+            $mock->shouldReceive('updateFromOrder')->andReturnNull();
+            $mock->shouldReceive('deleteEvent')->andReturnNull();
+        });
     }
 
     /** @test */
