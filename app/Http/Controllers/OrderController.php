@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
+use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Services\GoogleCalendarService; // ✅ Importación explícita
 // ✅ Importación explícita
@@ -34,7 +35,7 @@ class OrderController extends Controller
             ->orderBy('start_time')
             ->paginate($request->query('per_page', 20));
 
-        return response()->json($orders);
+        return OrderResource::collection($orders);
     }
 
     public function store(StoreOrderRequest $request)
@@ -120,14 +121,14 @@ class OrderController extends Controller
             $order->save();
         });
 
-        return response()->json($order->load(['client', 'items']), Response::HTTP_CREATED);
+        return new OrderResource($order->load(['client', 'items']));
     }
 
     public function show(Order $order)
     {
         $order->load(['client', 'items', 'clientAddress']);
 
-        return response()->json($order);
+        return new OrderResource($order);
     }
 
     public function update(UpdateOrderRequest $request, Order $order)
@@ -260,7 +261,7 @@ class OrderController extends Controller
 
         });
 
-        return response()->json($order->load(['client', 'items']));
+        return new OrderResource($order->load(['client', 'items']));
     }
 
     public function updateStatus(Request $request, Order $order)
@@ -300,7 +301,7 @@ class OrderController extends Controller
             $order->save();
         }
 
-        return response()->json($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function markAsPaid(Request $request, Order $order)
@@ -325,7 +326,7 @@ class OrderController extends Controller
             Log::error("Error al actualizar evento GC (pago) {$order->id}: ".$e->getMessage());
         }
 
-        return response()->json($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function markAsUnpaid(Request $request, Order $order)

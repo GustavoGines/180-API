@@ -57,8 +57,8 @@ class OrderTest extends TestCase
 
         // 3. Verificar Respuesta
         $response->assertStatus(201)
-            ->assertJsonPath('status', 'confirmed')
-            ->assertJsonPath('total', 5000); // 1 * 5000
+            ->assertJsonPath('data.status', 'confirmed')
+            ->assertJsonPath('data.total', 5000); // 1 * 5000
 
         // Verificar que se guardó en BD
         $this->assertDatabaseHas('orders', [
@@ -154,8 +154,8 @@ class OrderTest extends TestCase
 
         // 4. Verificar
         $response->assertStatus(200)
-            ->assertJsonPath('status', 'ready')
-            ->assertJsonPath('total', 6000);
+            ->assertJsonPath('data.status', 'ready')
+            ->assertJsonPath('data.total', 6000);
 
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
