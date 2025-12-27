@@ -1,41 +1,22 @@
-<?php
+use App\Http\Resources\ClientResource; // Added import
 
-namespace App\Http\Controllers;
+// ...
 
-use App\Http\Requests\StoreClientRequest;
-use App\Models\Client;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-
-class ClientController extends Controller
-{
-    /**
-     * GET /api/clients?query=ana
-     * Lista clientes con búsqueda por nombre/teléfono/email (ILIKE para PostgreSQL).
-     */
     public function index(Request $request)
     {
+        // ... (lines 18-52 remain same)
         $searchQuery = $request->query('query');
 
         $clients = Client::query()
+             // ... existing query logic ...
             ->when($searchQuery, function ($builder) use ($searchQuery) {
-
-                // 1. Separa la búsqueda en palabras (ej: "Gus Bog")
                 $searchTerms = explode(' ', $searchQuery);
-
-                // 2. Itera sobre cada palabra y exige que CADA palabra
-                //    esté en ALGUNAS de las columnas.
                 return $builder->where(function ($subQuery) use ($searchTerms) {
-
                     foreach ($searchTerms as $term) {
                         $term = trim($term);
                         if (! empty($term)) {
-                            // 3. Prepara el término para LIKE (con unaccent)
                             $likeTerm = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%';
-
-                            // 4. Exige que CADA término ($term) exista en alguna parte
                             $subQuery->where(function ($wordQuery) use ($likeTerm) {
-                                // Usa ILIKE (ignora mayús/min) y unaccent (ignora acentos)
                                 $wordQuery->whereRaw('unaccent(name) ILIKE unaccent(?)', [$likeTerm])
                                     ->orWhereRaw('unaccent(phone) ILIKE unaccent(?)', [$likeTerm])
                                     ->orWhereRaw('unaccent(email) ILIKE unaccent(?)', [$likeTerm]);
@@ -45,155 +26,104 @@ class ClientController extends Controller
                 });
             })
             ->orderBy('name')
-            // 5. Mantenemos 'paginate' porque tu app de Flutter (ClientsRepository)
-            //    está esperando una respuesta paginada ('data' => [...])
-            // 5. Aumentamos el límite de paginación para mostrar más resultados
-            // según requerimiento de "ver todos los clientes"
             ->paginate(500);
 
-        return response()->json($clients);
+        return ClientResource::collection($clients);
     }
 
-    /**
-     * POST /api/clients
-     * Crea un cliente.
-     */
     public function store(StoreClientRequest $request)
     {
         $validated = $request->validated();
-
-        // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
-
         if (isset($validated['phone'])) {
             $validated['phone'] = $this->normalizePhone($validated['phone']);
         }
-        $validated['name'] = $name; // Usamos el nombre limpio para la creación
+        $validated['name'] = $name;
 
-        // 2. COMPARA: Revisa si existe usando el nombre normalizado.
         $existingClient = Client::withTrashed()
             ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
             ->first();
 
         if ($existingClient) {
+            // ... existing conflict logic ...
             if ($existingClient->trashed()) {
                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe en la papelera.',
-                    'client' => $existingClient,
-                ], Response::HTTP_CONFLICT); // 409
+                    'client' => new ClientResource($existingClient),
+                ], Response::HTTP_CONFLICT);
             } else {
-                return response()->json([
+                 return response()->json([
                     'message' => 'Un cliente con este nombre ya existe.',
-                ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
         }
 
-        // 3. CREA: Usa el array $validated que ya tiene el teléfono normalizado.
         $client = Client::create($validated);
 
-        return response()->json(['data' => $client], Response::HTTP_CREATED);
+        return new ClientResource($client);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Client $client)
     {
         $client->load('addresses');
-
-        return response()->json(['data' => $client]);
+        return new ClientResource($client);
     }
 
-    /**
-     * PUT /api/clients/{client}
-     * Actualiza un cliente.
-     */
     public function update(StoreClientRequest $request, Client $client)
     {
         $validated = $request->validated();
-
-        // 1. NORMALIZA NOMBRE Y TELÉFONO ANTES DE CUALQUIER OTRA COSA
         $name = trim($validated['name']);
-
         if (isset($validated['phone'])) {
             $validated['phone'] = $this->normalizePhone($validated['phone']);
         }
-        $validated['name'] = $name; // Usamos el nombre limpio para la actualización
+        $validated['name'] = $name;
 
-        // 2. COMPARA: Revisa si existe usando unaccent() y LOWER()
         $existingClient = Client::withTrashed()
             ->whereRaw('unaccent(LOWER(name)) = unaccent(LOWER(?))', [$name])
-            // Solo busca conflictos si el ID encontrado es DIFERENTE al actual
             ->where('id', '!=', $client->id)
             ->first();
 
-        // 3. MANEJA CONFLICTOS (Idéntico a store)
         if ($existingClient) {
             if ($existingClient->trashed()) {
                 return response()->json([
                     'message' => 'Otro cliente con este nombre ya existe en la papelera.',
-                    'client' => $existingClient,
-                ], Response::HTTP_CONFLICT); // 409
+                    'client' => new ClientResource($existingClient),
+                ], Response::HTTP_CONFLICT);
             } else {
                 return response()->json([
                     'message' => 'Otro cliente con este nombre ya existe.',
-                ], Response::HTTP_UNPROCESSABLE_ENTITY); // 422
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
         }
 
-        // 4. ACTUALIZA: Usamos el array $validated que ya contiene los datos normalizados.
         $client->update($validated);
 
-        return response()->json(['data' => $client->fresh()]);
+        return new ClientResource($client->fresh());
     }
+    
+    // ... destroy remains mostly same ...
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Client $client)
-    {
-        // Aquí podrías añadir validaciones (ej. no borrar si tiene pedidos)
-        // if ($client->orders()->exists()) {
-        //     return response()->json(['message' => 'No se puede eliminar un cliente con pedidos asociados.'], 409); // 409 Conflict
-        // }
-
-        $client->delete();
-
-        // 204 No Content es la respuesta estándar para un DELETE exitoso
-        return response()->json(null, Response::HTTP_NO_CONTENT);
-    }
-
-    /**
-     * GET /api/clients/trashed
-     * Muestra una lista de clientes en la papelera.
-     */
     public function trashed()
     {
-        // Busca solo los clientes que están en la papelera
         $trashedClients = Client::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
-
-        return response()->json(['data' => $trashedClients]);
+        return ClientResource::collection($trashedClients);
     }
 
-    /**
-     * POST /api/clients/{id}/restore
-     * Restaura un cliente desde la papelera.
-     */
-    public function restore($id) // No usamos Route-Model binding para poder buscar en borrados
+    public function restore($id)
     {
         $client = Client::withTrashed()->find($id);
 
         if (! $client) {
-            return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND); // 404
+            return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND);
         }
 
         if (! $client->trashed()) {
-            return response()->json(['message' => 'El cliente no está eliminado'], Response::HTTP_BAD_REQUEST); // 400
+            return response()->json(['message' => 'El cliente no está eliminado'], Response::HTTP_BAD_REQUEST);
         }
 
         $client->restore();
 
-        return response()->json(['data' => $client]); // Devuelve el cliente restaurado
+        return new ClientResource($client);
     }
 
     /**

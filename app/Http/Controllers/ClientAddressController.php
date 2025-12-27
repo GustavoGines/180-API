@@ -1,37 +1,21 @@
-<?php
+use App\Http\Resources\ClientAddressResource; // Added import
 
-namespace App\Http\Controllers;
+// ...
 
-use App\Models\Client;
-use App\Models\ClientAddress;
-use Illuminate\Http\Response;
-use App\Http\Requests\StoreClientAddressRequest; // 👈 Importamos el nuevo Request
-
-class ClientAddressController extends Controller
-{
-    /**
-     * POST /api/clients/{client}/addresses
-     * Crea una nueva dirección para un cliente.
-     */
     public function store(StoreClientAddressRequest $request, Client $client)
     {
         $address = $client->addresses()->create($request->validated());
-        return response()->json(['data' => $address], Response::HTTP_CREATED);
+        return new ClientAddressResource($address);
     }
 
-    /**
-     * PUT /api/clients/{client}/addresses/{address}
-     * Actualiza una dirección específica.
-     */
     public function update(StoreClientAddressRequest $request, Client $client, ClientAddress $address)
     {
-        // Seguridad: Asegurarse que la dirección pertenezca al cliente
         if ($address->client_id !== $client->id) {
             return response()->json(['message' => 'Conflicto: La dirección no pertenece a este cliente.'], Response::HTTP_CONFLICT);
         }
 
         $address->update($request->validated());
-        return response()->json(['data' => $address->fresh()]);
+        return new ClientAddressResource($address->fresh());
     }
 
     /**

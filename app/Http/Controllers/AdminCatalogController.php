@@ -8,6 +8,9 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use App\Http\Resources\ProductResource;
+use App\Http\Resources\FillingResource;
+use App\Http\Resources\ExtraResource;
 
 class AdminCatalogController extends Controller
 {
@@ -39,7 +42,7 @@ class AdminCatalogController extends Controller
                 $product->variants()->createMany($validated['variants']);
             }
 
-            return response()->json(['message' => 'Product created', 'data' => $product->load('variants')], 201);
+            return response()->json(['message' => 'Product created', 'data' => new ProductResource($product->load('variants'))], 201);
         });
     }
 
@@ -101,7 +104,7 @@ class AdminCatalogController extends Controller
             }
         });
 
-        return response()->json(['message' => 'Product updated', 'data' => $product->load('variants')]);
+        return response()->json(['message' => 'Product updated', 'data' => new ProductResource($product->load('variants'))]);
     }
 
     public function destroyProduct($id)
@@ -127,7 +130,7 @@ class AdminCatalogController extends Controller
 
         $filling = Filling::create($validated);
 
-        return response()->json(['message' => 'Filling created', 'data' => $filling], 201);
+        return response()->json(['message' => 'Filling created', 'data' => new FillingResource($filling)], 201);
     }
 
     public function updateFilling(Request $request, $id)
@@ -141,7 +144,7 @@ class AdminCatalogController extends Controller
         ]);
         $filling->update($validated);
 
-        return response()->json(['message' => 'Filling updated', 'data' => $filling]);
+        return response()->json(['message' => 'Filling updated', 'data' => new FillingResource($filling)]);
     }
 
     public function destroyFilling($id)
@@ -163,7 +166,7 @@ class AdminCatalogController extends Controller
         ]);
         $extra = Extra::create($validated);
 
-        return response()->json(['message' => 'Extra created', 'data' => $extra], 201);
+        return response()->json(['message' => 'Extra created', 'data' => new ExtraResource($extra)], 201);
     }
 
     public function updateExtra(Request $request, $id)
@@ -177,7 +180,7 @@ class AdminCatalogController extends Controller
         ]);
         $extra->update($validated);
 
-        return response()->json(['message' => 'Extra updated', 'data' => $extra]);
+        return response()->json(['message' => 'Extra updated', 'data' => new ExtraResource($extra)]);
     }
 
     public function destroyExtra($id)
