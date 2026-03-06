@@ -257,6 +257,80 @@ class OrderController extends Controller
         return response()->noContent();
     }
 
+    public function checkAvailability(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date_format:Y-m-d',
+            'time' => 'nullable|date_format:H:i',
+        ]);
+
+        $dateStr = $request->query('date');
+        $timeStr = $request->query('time', '12:00'); // Hora por defecto si no envían
+
+        $requestedDate = \Carbon\Carbon::parse($dateStr);
+        $requestedDateTime = \Carbon\Carbon::parse("{$dateStr} {$timeStr}");
+        $now = \Carbon\Carbon::now();
+
+        // Regla 1: Días de Descanso (Martes cerrado)
+        if ($requestedDate->isTuesday()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'closed',
+                'message' => 'Los martes estamos cerrados.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Regla 2: Cupo Máximo Diario
+        // Buscamos si hay un cupo especial para esta fecha, si no usamos el default
+        $dailyCapacity = config("shop.special_capacities.{$dateStr}", config('shop.default_daily_capacity', 10));
+
+        // Contamos cuántos pedidos confirmados/listos hay para ese día
+        $ordersCount = Order::whereDate('event_date', $dateStr)
+            ->whereIn('status', ['draft', 'confirmed', 'ready']) // Consideramos estos estados como ocupando cupo
+            ->count();
+
+        if ($ordersCount >= $dailyCapacity) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'full_capacity',
+                'message' => 'Cupo lleno para este día.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Regla 3: Anticipación Mínima (< 24 horas)
+        $hoursDifference = $now->diffInHours($requestedDateTime, false);
+
+        // Si el pedido es para el pasado, lo rechazamos por obvias razones
+        if ($hoursDifference < 0 && ! $requestedDate->isToday()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'past_date',
+                'message' => 'La fecha solicitada ya pasó.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Si falta menos de 24 horas (pero es a futuro o es para hoy)
+        if ($requestedDateTime->copy()->subHours(24)->isPast()) {
+            return response()->json([
+                'available' => true,
+                'reason' => 'express',
+                'message' => 'El pedido es para dentro de menos de 24 horas, requiere revisión manual.',
+                'express_review_needed' => true,
+            ]);
+        }
+
+        // Si pasa todas las validaciones
+        return response()->json([
+            'available' => true,
+            'reason' => 'ok',
+            'message' => 'Fecha y cupo disponibles.',
+            'express_review_needed' => false,
+        ]);
+    }
+
     /**
      * Helper para transformar y crear items.
      */

@@ -78,7 +78,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/orders/{order}', [OrderController::class, 'update']);
     Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
 
-    // --- Estado del pedido---
+    // --- Estado y Disponibilidad ---
+    Route::get('/availability', [OrderController::class, 'checkAvailability']);
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 
     // Para marcar como pagado totalmente
