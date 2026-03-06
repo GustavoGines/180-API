@@ -25,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Dedoc\Scramble\Scramble::afterOpenApiGenerated(function (\Dedoc\Scramble\Support\Generator\OpenApi $openApi) {
+            $openApi->secure(
+                \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer')
+            );
+        });
+
         // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
 
         // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
@@ -52,5 +58,6 @@ class AppServiceProvider extends ServiceProvider
             return in_array($user->role, ['admin', 'staff']);
         });
 
+        \Illuminate\Support\Facades\Event::subscribe(\App\Listeners\SyncOrderToGoogleCalendar::class);
     }
 }

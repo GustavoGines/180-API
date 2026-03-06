@@ -1,9 +1,16 @@
+<?php
+
+namespace App\Http\Controllers;
+
 use App\Http\Resources\ExtraResource;
 use App\Http\Resources\FillingResource;
 use App\Http\Resources\ProductResource;
+use App\Models\Extra;
+use App\Models\Filling;
+use App\Models\Product;
 
-// ...
-
+class CatalogController extends Controller
+{
     public function index()
     {
         // 1. Productos Activos con sus Variantes
@@ -38,3 +45,4 @@ use App\Http\Resources\ProductResource;
             ],
         ]);
     }
+}

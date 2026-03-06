@@ -23,6 +23,7 @@ class StoreClientAddressRequest extends FormRequest
      */
     public function rules(): array
     {
+        \Illuminate\Support\Facades\Log::info('StoreClientAddressRequest rules called', $this->all());
         // 'sometimes' significa que solo valida si está presente (útil para PUT/PATCH)
         // 'required_without_all' es clave: debe proveer al menos una dirección, URL o coordenadas.
         return [
