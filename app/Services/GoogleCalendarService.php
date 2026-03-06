@@ -10,7 +10,7 @@ use Google\Service\Calendar\Event;
 
 class GoogleCalendarService
 {
-    private Calendar $calendar;
+    private ?Calendar $calendar = null;
 
     private string $calendarId;
 
@@ -21,6 +21,13 @@ class GoogleCalendarService
         // Toma de config/app.php; si no, usa Buenos_Aires.
         $this->timezone = config('app.timezone', $this->timezone);
         $this->calendarId = (string) env('GOOGLE_CALENDAR_ID', '');
+    }
+
+    private function getCalendar(): Calendar
+    {
+        if ($this->calendar !== null) {
+            return $this->calendar;
+        }
 
         if ($this->calendarId === '') {
             throw new \RuntimeException('Falta GOOGLE_CALENDAR_ID en .env');
@@ -56,12 +63,14 @@ class GoogleCalendarService
 
         $client->setScopes([Calendar::CALENDAR]);
         $this->calendar = new Calendar($client);
+
+        return $this->calendar;
     }
 
     public function createFromOrder(Order $order): string
     {
         $event = $this->buildEventFromOrder($order);
-        $created = $this->calendar->events->insert($this->calendarId, $event, ['sendUpdates' => 'none']);
+        $created = $this->getCalendar()->events->insert($this->calendarId, $event, ['sendUpdates' => 'none']);
 
         return $created->id;
     }
@@ -71,7 +80,7 @@ class GoogleCalendarService
         $event = $this->buildEventFromOrder($order);
 
         if (! empty($order->google_event_id)) {
-            $this->calendar->events->update($this->calendarId, $order->google_event_id, $event, ['sendUpdates' => 'none']);
+            $this->getCalendar()->events->update($this->calendarId, $order->google_event_id, $event, ['sendUpdates' => 'none']);
         } else {
             $order->google_event_id = $this->createFromOrder($order);
             $order->save();
@@ -80,7 +89,7 @@ class GoogleCalendarService
 
     public function deleteEvent(string $googleEventId): void
     {
-        $this->calendar->events->delete($this->calendarId, $googleEventId);
+        $this->getCalendar()->events->delete($this->calendarId, $googleEventId);
     }
 
     private function buildEventFromOrder(Order $order): Event
