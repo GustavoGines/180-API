@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use App\Http\Resources\ClientAddressResource;
 
 class ClientResource extends JsonResource
 {
@@ -22,6 +21,7 @@ class ClientResource extends JsonResource
             'email' => $this->email,
             'address' => $this->address,
             'addresses' => ClientAddressResource::collection($this->whenLoaded('addresses')),
+            'orders' => OrderResource::collection($this->whenLoaded('orders')),
             'notes' => $this->notes,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

@@ -15,6 +15,9 @@ class ClientController extends Controller
         $searchQuery = trim($request->query('query'));
 
         $clients = Client::query()
+            ->with(['orders' => function ($query) {
+                $query->whereNotIn('status', ['canceled', 'delivered'])->orderBy('event_date', 'asc');
+            }])
             ->when($searchQuery, function ($builder) use ($searchQuery) {
                 // 1. Intentar limpiar el input como si fuera un teléfono
                 $normalizedPhoneQuery = $this->normalizePhone($searchQuery);
