@@ -157,3 +157,5 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/ping', function () {
     return response()->json(['status' => 'ok']);
 });
+
+require __DIR__.'/auth.php';
