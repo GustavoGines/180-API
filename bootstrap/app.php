@@ -34,34 +34,37 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (Throwable $e, \Illuminate\Http\Request $request) {
-            if (! $request->is('api/*') && ! $request->expectsJson()) {
-                return null; // Dejar que Laravel maneje errores no-API (vistas, etc)
+            if ($request->is('api/*') || $request->expectsJson()) {
+                $statusCode = 500;
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $statusCode = $e->getStatusCode();
+                }
+
+                $response = [
+                    'message' => $e->getMessage(),
+                ];
+
+                // 🔥 Interceptar explícitamente errores de validación
+                if ($e instanceof \Illuminate\Validation\ValidationException) {
+                    $statusCode = 422;
+                    $response['message'] = 'Los datos enviados no son válidos.';
+                    $response['errors'] = $e->errors();
+
+                    return response()->json($response, $statusCode);
+                }
+
+                if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                    return response()->json(['message' => 'No autenticado.'], 401);
+                }
+
+                if (config('app.debug') && $statusCode >= 500) {
+                    $response['trace'] = $e->getTrace();
+                }
+
+                return response()->json($response, $statusCode);
             }
 
-            $statusCode = 500;
-            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
-                $statusCode = $e->getStatusCode();
-            }
-
-            $response = [
-                'message' => $e->getMessage(),
-            ];
-
-            if ($e instanceof \Illuminate\Validation\ValidationException) {
-                $statusCode = 422;
-                $response['errors'] = $e->errors();
-            }
-
-            if ($e instanceof \Illuminate\Auth\AuthenticationException) {
-                $statusCode = 401;
-                $response['message'] = 'No autenticado.';
-            }
-
-            // Debug info en local
-            if (config('app.debug') && $statusCode >= 500) {
-                $response['trace'] = $e->getTrace();
-            }
-
-            return response()->json($response, $statusCode);
+            // Para entorno no-API, dejar comportamiento por defecto
+            return null;
         });
     })->create();
