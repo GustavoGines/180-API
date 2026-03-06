@@ -43,7 +43,7 @@ class StoreOrderRequest extends FormRequest
             'event_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
-            'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'status' => ['nullable', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
@@ -80,7 +80,7 @@ class StoreOrderRequest extends FormRequest
                 $startTime = \DateTime::createFromFormat('H:i', $start);
                 $endTime = \DateTime::createFromFormat('H:i', $end);
                 if ($startTime && $endTime && $endTime <= $startTime) {
-                    $v->errors()->add('end_time', 'La hora de fin debe ser posterior a la hora de inicio.');
+                    $v->errors()->add('end_time', __('messages.validation.end_time_after_start'));
                 }
             }
 
@@ -96,14 +96,14 @@ class StoreOrderRequest extends FormRequest
                     $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0;
 
                     if ($qty <= 0 || $basePrice < 0) {
-                        $v->errors()->add("items.$key", 'El ítem tiene cantidad o precio base inválido.');
+                        $v->errors()->add("items.$key", __('messages.validation.item_invalid_qty_price'));
 
                         continue;
                     }
 
                     $finalUnitPrice = $basePrice + $adjustments;
                     if ($finalUnitPrice < 0) {
-                        $v->errors()->add("items.$key", 'El precio final del ítem no puede ser negativo.');
+                        $v->errors()->add("items.$key", __('messages.validation.item_price_negative'));
 
                         continue;
                     }
@@ -117,11 +117,11 @@ class StoreOrderRequest extends FormRequest
                     $epsilon = 0.01;
 
                     if ($deposit > ($calculatedGrandTotal + $epsilon)) {
-                        $v->errors()->add('deposit', 'El depósito no puede ser mayor al total.');
+                        $v->errors()->add('deposit', __('messages.validation.deposit_exceeds_total'));
                     }
                 }
             } elseif (($this->input('deposit') ?? 0) > 0) {
-                $v->errors()->add('deposit', 'No se puede registrar un depósito si no hay productos.');
+                $v->errors()->add('deposit', __('messages.validation.deposit_without_items'));
             }
         });
     }

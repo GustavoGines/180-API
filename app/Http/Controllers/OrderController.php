@@ -2,23 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderCreated;
+use App\Events\OrderDeleted;
+use App\Events\OrderUpdated;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
-use App\Services\GoogleCalendarService; // ✅ Importación explícita
-// ✅ Importación explícita
+use App\Services\OrderImageService;
+use App\Services\OrderPriceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class OrderController extends Controller
 {
-    public function __construct(private GoogleCalendarService $googleCalendarService) {}
+    public function __construct(
+        private OrderPriceCalculator $priceCalculator,
+        private OrderImageService $imageService
+    ) {}
 
     public function index(Request $request)
     {
@@ -40,86 +45,44 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request)
     {
-        // 1. Obtener datos validados (ya procesados por StoreOrderRequest)
         $validated = $request->validated();
         $files = $request->file('files') ?? [];
 
-        // 4. Lógica para reemplazar Placeholders (Sigue siendo necesaria aquí)
-        foreach ($validated['items'] as &$item) { // '&' (por referencia)
-            if (isset($item['customization_json']['photo_urls']) && is_array($item['customization_json']['photo_urls'])) {
-                $newUrls = [];
-                foreach ($item['customization_json']['photo_urls'] as $url) {
-                    if (str_starts_with($url, 'placeholder_') && isset($files[$url])) {
-                        $file = $files[$url];
-                        $path = $file->store('order-photos', 's3'); // Sube a R2
-                        $newUrls[] = Storage::disk('s3')->url($path); // Obtiene URL de R2
-                    } elseif (! str_starts_with($url, 'placeholder_')) {
-                        $newUrls[] = $url;
-                    }
-                }
-                $item['customization_json']['photo_urls'] = $newUrls;
-            }
+        // 1. Procesar imágenes (Placeholders)
+        if (isset($validated['items']) && is_array($validated['items'])) {
+            $validated['items'] = $this->imageService->processPlaceholders($validated['items'], $files);
         }
-        unset($item);
-        // --- FIN LÓGICA PLACEHOLDERS ---
 
-        $order = null;
-
-        DB::transaction(function () use (&$order, $validated) {
-            // 5. Calcular el total (ahora $validated tiene las URLs correctas)
-            $itemsTotal = 0.0;
-            foreach ($validated['items'] as $item) {
-                $qty = (int) $item['qty'];
-                $basePrice = (float) $item['base_price'];
-                $adjustments = (float) ($item['adjustments'] ?? 0);
-                $finalUnitPrice = $basePrice + $adjustments;
-                $itemsTotal += $qty * $finalUnitPrice;
-            }
+        $order = DB::transaction(function () use ($validated) {
+            // 2. Calcular totales
+            $itemsTotal = $this->priceCalculator->calculateItemsTotal($validated['items']);
             $deliveryCost = (float) ($validated['delivery_cost'] ?? 0);
-            $calculatedGrandTotal = $itemsTotal + $deliveryCost;
+            $calculatedGrandTotal = $this->priceCalculator->calculateGrandTotal($itemsTotal, $deliveryCost);
 
-            // 6. Preparar datos de la orden
+            // 3. Preparar datos de la orden
             $orderData = Arr::except($validated, ['items', 'deposit']);
             $orderData['total'] = $calculatedGrandTotal;
-            $orderData['deposit'] = 0;
             $orderData['status'] = $validated['status'] ?? 'confirmed';
-            // Si viene is_paid, usarlo, si no false.
             $orderData['is_paid'] = $validated['is_paid'] ?? false;
 
-            // 7. Crear la orden
+            // Calcular depósito
+            $originalDeposit = (float) ($validated['deposit'] ?? 0);
+            $orderData['deposit'] = $this->priceCalculator->calculateValidDeposit($originalDeposit, $calculatedGrandTotal);
+
+            // 4. Crear orden
             $order = Order::create($orderData);
 
-            // 8. Crear los items
+            // 5. Crear items
             if (! empty($validated['items'])) {
-                $itemsData = array_map(function ($item) {
-                    return [
-                        'name' => $item['name'],
-                        'qty' => $item['qty'],
-                        'base_price' => $item['base_price'],
-                        'adjustments' => $item['adjustments'] ?? 0,
-                        'customization_notes' => $item['customization_notes'] ?? null,
-                        'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                                ? $item['customization_json']
-                                                : null,
-                    ];
-                }, $validated['items']);
-                $order->items()->createMany($itemsData);
+                $this->createOrderItems($order, $validated['items']);
             }
 
-            // 9. Actualizar depósito
-            $originalDeposit = (float) ($validated['deposit'] ?? 0);
-            $order->deposit = min($originalDeposit, $calculatedGrandTotal);
-
-            // 10. Crear evento en Google Calendar
-            try {
-                $googleEventId = $this->googleCalendarService->createFromOrder($order->fresh(['client', 'items']));
-                $order->google_event_id = $googleEventId;
-            } catch (\Exception $e) {
-                Log::error("Error al crear evento de Google Calendar para la orden (nueva) {$order->id}: ".$e->getMessage());
-            }
-
-            $order->save();
+            return $order;
         });
+
+        // 6. Disparar evento (fuera de transacción para evitar race conditions con listeners async si fallara commit)
+        // Nota: Si el listener es async (queue), es seguro.
+        OrderCreated::dispatch($order);
 
         return new OrderResource($order->load(['client', 'items']));
     }
@@ -134,145 +97,68 @@ class OrderController extends Controller
     public function update(UpdateOrderRequest $request, Order $order)
     {
         if (! Gate::allows('manage-orders')) {
-            abort(403, 'No tienes permiso para realizar esta acción.');
+            abort(403, __('messages.unauthorized_action'));
         }
 
-        // 1. Obtener datos validados
         $validated = $request->validated();
         $files = $request->file('files') ?? [];
 
-        DB::transaction(function () use ($validated, $order, $files) {
+        // Obtener URLs antiguas ANTES de procesar los nuevos items
+        $order->load('items');
+        $oldPhotoUrls = $this->imageService->getPhotoUrls($order->items);
 
-            // --- INICIO: LÓGICA PARA BORRAR IMÁGENES ANTIGUAS ---
-            $oldPhotoUrls = [];
-            $order->load('items');
-            foreach ($order->items as $item) {
-                $customizationData = $item->customization_json ?? [];
-                if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
-                    $oldPhotoUrls = array_merge($oldPhotoUrls, $customizationData['photo_urls']);
-                }
-            }
-            $oldPhotoUrls = array_unique($oldPhotoUrls);
-            // --- FIN OBTENER URLs ANTIGUAS ---
+        // Procesar nuevos items (Placeholders)
+        if (isset($validated['items']) && is_array($validated['items'])) {
+            $validated['items'] = $this->imageService->processPlaceholders($validated['items'], $files);
+        }
 
-            // 4. ✅ Lógica para reemplazar Placeholders (Igual que en 'store')
-            foreach ($validated['items'] as &$item) { // 👈 '&' (por referencia)
-                if (isset($item['customization_json']['photo_urls']) && is_array($item['customization_json']['photo_urls'])) {
-                    $newUrls = [];
-                    foreach ($item['customization_json']['photo_urls'] as $url) {
-                        if (str_starts_with($url, 'placeholder_') && isset($files[$url])) {
-                            $file = $files[$url];
-                            $path = $file->store('order-photos', 's3');
-                            $newUrls[] = Storage::disk('s3')->url($path);
-                        } elseif (! str_starts_with($url, 'placeholder_')) {
-                            $newUrls[] = $url; // Conservar URLs de red existentes
-                        }
-                    }
-                    $item['customization_json']['photo_urls'] = $newUrls;
-                }
-            }
-            unset($item);
-            // --- FIN LÓGICA PLACEHOLDERS ---
+        $updatedOrder = DB::transaction(function () use ($validated, $order, $oldPhotoUrls) {
 
-            // --- INICIO: LÓGICA PARA OBTENER URLs A BORRAR (Modificada) ---
-            $newPhotoUrls = [];
-            if (isset($validated['items']) && is_array($validated['items'])) {
-                foreach ($validated['items'] as $itemPayload) {
-                    $customizationData = $itemPayload['customization_json'] ?? [];
-                    if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
-                        $newPhotoUrls = array_merge($newPhotoUrls, $customizationData['photo_urls']);
-                    }
-                }
-            }
-            $newPhotoUrls = array_unique($newPhotoUrls);
-            $urlsToDelete = array_diff($oldPhotoUrls, $newPhotoUrls);
-            // --- FIN LÓGICA OBTENER URLs A BORRAR ---
-
-            // 5. Calcular el NUEVO total
+            // 1. Calcular Nuevos Totales
             $newItemsTotal = 0.0;
             if (isset($validated['items']) && is_array($validated['items'])) {
-                foreach ($validated['items'] as $item) {
-                    $qty = (int) $item['qty'];
-                    $basePrice = (float) $item['base_price'];
-                    $adjustments = (float) ($item['adjustments'] ?? 0);
-                    $finalUnitPrice = $basePrice + $adjustments;
-                    $newItemsTotal += $qty * $finalUnitPrice;
-                }
+                $newItemsTotal = $this->priceCalculator->calculateItemsTotal($validated['items']);
             }
             $newDeliveryCost = (float) ($validated['delivery_cost'] ?? 0);
-            $newCalculatedGrandTotal = $newItemsTotal + $newDeliveryCost;
+            $newGrandTotal = $this->priceCalculator->calculateGrandTotal($newItemsTotal, $newDeliveryCost);
 
             $orderData = Arr::except($validated, ['items', 'deposit']);
             $newDeposit = (float) ($validated['deposit'] ?? 0);
-            $orderData['total'] = $newCalculatedGrandTotal;
-            $orderData['deposit'] = min($newDeposit, $newCalculatedGrandTotal);
 
-            // 6. Actualizar la orden
+            $orderData['total'] = $newGrandTotal;
+            $orderData['deposit'] = $this->priceCalculator->calculateValidDeposit($newDeposit, $newGrandTotal);
+
+            // 2. Actualizar Orden
             $order->update($orderData);
 
-            // 7. Reemplazar ítems
-            $order->items()->delete(); // Borra los items viejos de la BD
-
+            // 3. Reemplazar Items
+            $order->items()->delete();
             if (isset($validated['items']) && is_array($validated['items'])) {
-                $itemsData = array_map(function ($item) {
-                    return [
-                        'name' => $item['name'],
-                        'qty' => $item['qty'],
-                        'base_price' => $item['base_price'],
-                        'adjustments' => $item['adjustments'] ?? 0,
-                        'customization_notes' => $item['customization_notes'] ?? null,
-                        'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                                ? $item['customization_json']
-                                                : null,
-                    ];
-                }, $validated['items']);
-                $order->items()->createMany($itemsData); // Crea los nuevos items
+                $this->createOrderItems($order, $validated['items']);
             }
 
-            // 8. Ejecutar el borrado de archivos de R2 (disco 's3')
-            if (! empty($urlsToDelete)) {
-                // ✅ CAMBIO: Usar 's3' (R2)
-                $r2BaseUrl = rtrim(Storage::disk('s3')->url(''), '/');
-                $pathsToDelete = [];
-                foreach ($urlsToDelete as $url) {
-                    if ($url && str_starts_with((string) $url, $r2BaseUrl)) {
-                        $path = ltrim(substr((string) $url, strlen($r2BaseUrl)), '/');
-                        if (! empty($path)) {
-                            $pathsToDelete[] = $path;
-                        }
-                    }
-                }
-                if (! empty($pathsToDelete)) {
-                    Log::info("[Update Order {$order->id}] Borrando archivos huérfanos de R2: ".implode(', ', $pathsToDelete));
-                    try {
-                        Storage::disk('s3')->delete($pathsToDelete); // ✅ CAMBIO: Usar 's3'
-                    } catch (\Exception $e) {
-                        Log::error("[Update Order {$order->id}] Error borrando de R2: ".$e->getMessage());
-                    }
-                }
-            }
+            // 4. Gestionar borrado de imágenes huérfanas
+            // Obtenemos las nuevas URLs ya guardados los items (o desde $validated)
+            $newPhotoUrls = $this->imageService->getPhotoUrls($validated['items'] ?? []);
+            $this->imageService->deleteOrphanedPhotos($oldPhotoUrls, $newPhotoUrls, $order->id);
 
-            // 9. Sincronizar Google Calendar
-            try {
-                $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
-            } catch (\Exception $e) {
-                Log::error("Error al actualizar evento GC para orden {$order->id}: ".$e->getMessage());
-            }
-
+            return $order;
         });
 
-        return new OrderResource($order->load(['client', 'items']));
+        OrderUpdated::dispatch($updatedOrder);
+
+        return new OrderResource($updatedOrder->load(['client', 'items']));
     }
 
     public function updateStatus(Request $request, Order $order)
     {
         if (! Gate::allows('manage-orders')) {
-            abort(403, 'No tienes permiso para realizar esta acción.');
+            abort(403, __('messages.unauthorized_action'));
         }
 
         $validated = $request->validate([
-            'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:confirmed,ready,delivered,canceled'],
-            'is_paid' => ['sometimes', 'boolean'], // Permitir actualizar solo el flag
+            'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
+            'is_paid' => ['sometimes', 'boolean'],
             'is_fully_paid' => ['sometimes', 'required_without:status', 'boolean', 'accepted'],
         ]);
 
@@ -299,6 +185,7 @@ class OrderController extends Controller
 
         if ($updated) {
             $order->save();
+            OrderUpdated::dispatch($order);
         }
 
         return new OrderResource($order->fresh(['client', 'items']));
@@ -307,24 +194,20 @@ class OrderController extends Controller
     public function markAsPaid(Request $request, Order $order)
     {
         if (! Gate::allows('manage-orders')) {
-            abort(403, 'No tienes permiso para realizar esta acción.');
+            abort(403, __('messages.unauthorized_action'));
         }
 
         if (! is_numeric($order->total) || $order->total <= 0 || $order->deposit >= $order->total) {
             return response()->json([
-                'message' => 'El pedido ya está pagado o el total es inválido.',
+                'message' => __('messages.order_already_paid_or_invalid'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $order->deposit = $order->total;
-        $order->is_paid = true; // ✅ Forzar flag de pagado
+        $order->is_paid = true;
         $order->save();
 
-        try {
-            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
-        } catch (\Exception $e) {
-            Log::error("Error al actualizar evento GC (pago) {$order->id}: ".$e->getMessage());
-        }
+        OrderUpdated::dispatch($order);
 
         return new OrderResource($order->fresh(['client', 'items']));
     }
@@ -332,24 +215,18 @@ class OrderController extends Controller
     public function markAsUnpaid(Request $request, Order $order)
     {
         if (! Gate::allows('manage-orders')) {
-            abort(403, 'No tienes permiso para realizar esta acción.');
+            abort(403, __('messages.unauthorized_action'));
         }
 
         $order->is_paid = false;
-        // Si el depósito es igual al total, lo reseteamos a 0 asumiendo que fue marcado como pagado automáticamente.
-        // Si es un pago parcial, no tocamos el depósito (aunque 'markAsPaid' lo hubiera sobrescrito, aquí no podemos saber el valor anterior).
-        // Por seguridad en flujo "unmark", reseteamos si parece pagado total.
+
         if ($order->deposit >= $order->total) {
             $order->deposit = 0;
         }
 
         $order->save();
 
-        try {
-            $this->googleCalendarService->updateFromOrder($order->fresh(['client', 'items']));
-        } catch (\Exception $e) {
-            Log::error("Error al actualizar evento GC (unmark-paid) {$order->id}: ".$e->getMessage());
-        }
+        OrderUpdated::dispatch($order);
 
         return response()->json($order->fresh(['client', 'items']));
     }
@@ -357,59 +234,120 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         if (! Gate::allows('manage-orders')) {
-            abort(403, 'No tienes permiso para realizar esta acción.');
+            abort(403, __('messages.unauthorized_action'));
         }
 
+        // Capturamos datos necesarios para el evento ANTES de borrar
+        $orderId = $order->id;
+        $googleEventId = $order->google_event_id;
+
         DB::transaction(function () use ($order) {
-            // --- Lógica para borrar imágenes de R2 ---
-            $order->load('items');
-            $photoUrlsToDelete = [];
-            foreach ($order->items as $item) {
-                $customizationData = $item->customization_json ?? [];
-                if (isset($customizationData['photo_urls']) && is_array($customizationData['photo_urls'])) {
-                    $photoUrlsToDelete = array_merge($photoUrlsToDelete, $customizationData['photo_urls']);
-                }
-            }
-            $photoUrlsToDelete = array_unique($photoUrlsToDelete);
+            // 1. Borrar imágenes de R2
+            $this->imageService->deleteAllPhotosForOrder($order);
 
-            if (! empty($photoUrlsToDelete)) {
-                // ✅ CAMBIO: Usar 's3' (R2)
-                $r2BaseUrl = rtrim(Storage::disk('s3')->url(''), '/');
-                $pathsToDelete = [];
-                foreach ($photoUrlsToDelete as $url) {
-                    if ($url && str_starts_with((string) $url, $r2BaseUrl)) {
-                        $path = ltrim(substr((string) $url, strlen($r2BaseUrl)), '/');
-                        if (! empty($path)) {
-                            $pathsToDelete[] = $path;
-                        }
-                    } else {
-                        Log::warning("[Destroy Order {$order->id}] URL R2 no reconocida: ".$url);
-                    }
-                }
-                if (! empty($pathsToDelete)) {
-                    Log::info("[Destroy Order {$order->id}] Borrando de R2: ".implode(', ', $pathsToDelete));
-                    try {
-                        Storage::disk('s3')->delete($pathsToDelete); // ✅ CAMBIO: Usar 's3'
-                    } catch (\Exception $e) {
-                        Log::error("[Destroy Order {$order->id}] Error borrando de R2: ".$e->getMessage());
-                    }
-                }
-            }
-            // --- FIN: LÓGICA BORRAR IMÁGENES ---
-
-            // 4. Borrar evento de Google Calendar
-            if (! empty($order->google_event_id)) {
-                try {
-                    $this->googleCalendarService->deleteEvent($order->google_event_id);
-                } catch (\Exception $e) {
-                    Log::error("[Destroy Order {$order->id}] Error borrando evento GC {$order->google_event_id}: ".$e->getMessage());
-                }
-            }
-
-            // 5. Borrar el pedido de la base de datos
+            // 2. Borrar orden (cascade delete a items debería manejarse en BD o Modelo,
+            // pero si no, items()->delete() explícito)
+            $order->items()->delete(); // Por consistencia explícita
             $order->delete();
         });
 
+        // 3. Disparar evento de borrado
+        OrderDeleted::dispatch($orderId, $googleEventId);
+
         return response()->noContent();
+    }
+
+    public function checkAvailability(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date_format:Y-m-d',
+            'time' => 'nullable|date_format:H:i',
+        ]);
+
+        $dateStr = $request->query('date');
+        $timeStr = $request->query('time', '12:00'); // Hora por defecto si no envían
+
+        $requestedDate = \Carbon\Carbon::parse($dateStr);
+        $requestedDateTime = \Carbon\Carbon::parse("{$dateStr} {$timeStr}");
+        $now = \Carbon\Carbon::now();
+
+        // Regla 1: Días de Descanso (Martes cerrado)
+        if ($requestedDate->isTuesday()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'closed',
+                'message' => 'Los martes estamos cerrados.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Regla 2: Cupo Máximo Diario
+        // Buscamos si hay un cupo especial para esta fecha, si no usamos el default
+        $dailyCapacity = config("shop.special_capacities.{$dateStr}", config('shop.default_daily_capacity', 10));
+
+        // Contamos cuántos pedidos confirmados/listos hay para ese día
+        $ordersCount = Order::whereDate('event_date', $dateStr)
+            ->whereIn('status', ['draft', 'confirmed', 'ready']) // Consideramos estos estados como ocupando cupo
+            ->count();
+
+        if ($ordersCount >= $dailyCapacity) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'full_capacity',
+                'message' => 'Cupo lleno para este día.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Regla 3: Anticipación Mínima (< 24 horas)
+        $hoursDifference = $now->diffInHours($requestedDateTime, false);
+
+        // Si el pedido es para el pasado, lo rechazamos por obvias razones
+        if ($hoursDifference < 0 && ! $requestedDate->isToday()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'past_date',
+                'message' => 'La fecha solicitada ya pasó.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // Si falta menos de 24 horas (pero es a futuro o es para hoy)
+        if ($requestedDateTime->copy()->subHours(24)->isPast()) {
+            return response()->json([
+                'available' => true,
+                'reason' => 'express',
+                'message' => 'El pedido es para dentro de menos de 24 horas, requiere revisión manual.',
+                'express_review_needed' => true,
+            ]);
+        }
+
+        // Si pasa todas las validaciones
+        return response()->json([
+            'available' => true,
+            'reason' => 'ok',
+            'message' => 'Fecha y cupo disponibles.',
+            'express_review_needed' => false,
+        ]);
+    }
+
+    /**
+     * Helper para transformar y crear items.
+     */
+    private function createOrderItems(Order $order, array $itemsDataRaw)
+    {
+        $itemsData = array_map(function ($item) {
+            return [
+                'name' => $item['name'],
+                'qty' => $item['qty'],
+                'base_price' => $item['base_price'],
+                'adjustments' => $item['adjustments'] ?? 0,
+                'customization_notes' => $item['customization_notes'] ?? null,
+                'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
+                                        ? $item['customization_json']
+                                        : null,
+            ];
+        }, $itemsDataRaw);
+        $order->items()->createMany($itemsData);
     }
 }

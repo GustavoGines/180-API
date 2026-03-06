@@ -1,7 +1,18 @@
-use App\Http\Resources\UserResource; // Added import
+<?php
 
-// ...
+namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Http\Resources\UserResource;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Arr;
+
+class UserController extends Controller
+{
     public function index()
     {
         $users = User::whereIn('role', ['admin', 'staff'])
@@ -21,7 +32,6 @@ use App\Http\Resources\UserResource; // Added import
 
     public function store(StoreUserRequest $request)
     {
-        // ... (validation logic remains)
         $validated = $request->validated();
         $email = $validated['email'];
 
@@ -64,7 +74,11 @@ use App\Http\Resources\UserResource; // Added import
         return new UserResource($user->fresh());
     }
 
-    // ... destroy remains same ...
+    public function destroy(User $user)
+    {
+        $user->delete();
+        return response()->noContent();
+    }
 
     public function restore(int $id)
     {
@@ -79,5 +93,10 @@ use App\Http\Resources\UserResource; // Added import
         return new UserResource($user->fresh());
     }
 
-    // ... forceDelete remains same ...
-
+    public function forceDelete(int $id)
+    {
+        $user = User::withTrashed()->findOrFail($id);
+        $user->forceDelete();
+        return response()->noContent();
+    }
+}

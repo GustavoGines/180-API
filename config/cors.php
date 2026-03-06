@@ -19,10 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:*', // Acepta cualquier puerto en localhost
-        'https://one80-api.onrender.com', // Reemplaza esto con tu URL de Render
-    ],
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 
