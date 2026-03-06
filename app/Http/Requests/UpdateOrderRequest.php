@@ -41,7 +41,7 @@ class UpdateOrderRequest extends FormRequest
             'start_time' => ['required', 'date_format:H:i'], // Controller dice required
             'end_time' => ['required', 'date_format:H:i'],   // Controller dice required
 
-            'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'status' => ['nullable', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
             'is_paid' => ['nullable', 'boolean'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],

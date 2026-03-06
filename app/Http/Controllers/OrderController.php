@@ -157,7 +157,7 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
             'is_paid' => ['sometimes', 'boolean'],
             'is_fully_paid' => ['sometimes', 'required_without:status', 'boolean', 'accepted'],
         ]);

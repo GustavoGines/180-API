@@ -43,7 +43,7 @@ class StoreOrderRequest extends FormRequest
             'event_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
-            'status' => ['nullable', 'string', 'in:confirmed,ready,delivered,canceled'],
+            'status' => ['nullable', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
