@@ -34,7 +34,8 @@ class BotOrderService
             ];
 
             // 1. Buscar el Product ID por nombre y categoria
-            $product = Product::where('name', ltrim(rtrim($botItem['product_name'])))
+            $productNameClean = strtolower(trim($botItem['product_name']));
+            $product = Product::whereRaw('LOWER(name) = ?', [$productNameClean])
                 ->where('category', $botItem['category_name'])
                 ->first();
 
@@ -52,7 +53,12 @@ class BotOrderService
 
             // 3. Fillings (Rellenos)
             if (!empty($botItem['fillings']) && is_array($botItem['fillings'])) {
-                $fillings = Filling::whereIn('name', array_map('trim', $botItem['fillings']))->get();
+                $fillingNames = array_map(fn($name) => strtolower(trim($name)), $botItem['fillings']);
+                $fillings = Filling::where(function($query) use ($fillingNames) {
+                    foreach ($fillingNames as $name) {
+                        $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                    }
+                })->get();
                 $selectedFillings = [];
                 
                 foreach ($fillings as $filling) {
@@ -75,7 +81,12 @@ class BotOrderService
 
             // 4. Extras
             if (!empty($botItem['extras']) && is_array($botItem['extras'])) {
-                $extras = Extra::whereIn('name', array_map('trim', $botItem['extras']))->get();
+                $extraNames = array_map(fn($name) => strtolower(trim($name)), $botItem['extras']);
+                $extras = Extra::where(function($query) use ($extraNames) {
+                    foreach ($extraNames as $name) {
+                        $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                    }
+                })->get();
                 $selectedExtras = [];
 
                 foreach ($extras as $extra) {
