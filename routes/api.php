@@ -72,6 +72,10 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // --- Pedidos ---
+    // Rutas para el Bot (IA) - Se ubican antes del wildcard {order}
+    Route::post('/orders/bot', [OrderController::class, 'storeFromBot']);
+    Route::put('/orders/bot/{order}', [OrderController::class, 'updateFromBot']);
+
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
