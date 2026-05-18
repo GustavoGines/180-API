@@ -20,7 +20,7 @@ class GoogleCalendarService
     {
         // Toma de config/app.php; si no, usa Buenos_Aires.
         $this->timezone = config('app.timezone', $this->timezone);
-        $this->calendarId = (string) env('GOOGLE_CALENDAR_ID', '');
+        $this->calendarId = (string) config('services.google.calendar_id', '');
     }
 
     private function getCalendar(): Calendar
@@ -36,9 +36,9 @@ class GoogleCalendarService
         $client = new GoogleClient;
 
         // Credenciales: BASE64 → JSON inline → PATH
-        $jsonInline = env('GOOGLE_APP_CREDENTIALS_JSON');
-        $jsonBase64 = env('GOOGLE_APP_CREDENTIALS_BASE64');
-        $jsonPath = env('GOOGLE_APP_CREDENTIALS_PATH');
+        $jsonInline = config('services.google.credentials_json');
+        $jsonBase64 = config('services.google.credentials_base64');
+        $jsonPath   = config('services.google.credentials_path');
 
         if (! empty($jsonBase64)) {
             $decoded = json_decode(base64_decode($jsonBase64, true) ?: '', true);

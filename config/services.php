@@ -41,4 +41,13 @@ return [
         'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
     ],
 
+    'google' => [
+        'calendar_id'          => env('GOOGLE_CALENDAR_ID', ''),
+        'credentials_base64'   => env('GOOGLE_APP_CREDENTIALS_BASE64'),
+        'credentials_json'     => env('GOOGLE_APP_CREDENTIALS_JSON'),
+        'credentials_path'     => env('GOOGLE_APP_CREDENTIALS_PATH'),
+    ],
+
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
+
 ];

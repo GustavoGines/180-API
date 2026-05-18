@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Autenticación API (Sanctum)
+// Autenticación API (Sanctum) — máx. 10 intentos/min por IP
 Route::post('/auth/token', function (Request $request) {
     $request->validate([
         'email' => 'required|email',
@@ -40,7 +40,7 @@ Route::post('/auth/token', function (Request $request) {
     return response()->json([
         'token' => $user->createToken($request->device_name)->plainTextToken,
     ]);
-});
+})->middleware('throttle:10,1');
 
 Route::middleware('auth:sanctum')->group(function () {
 

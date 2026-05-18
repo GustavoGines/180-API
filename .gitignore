@@ -30,3 +30,6 @@ Thumbs.db
 /pasteleria-*.json
 /creds.b64
 composer.phar
+# Dumps de base de datos — pueden contener datos sensibles
+/database/*.sql
+database/dump-*.sql
