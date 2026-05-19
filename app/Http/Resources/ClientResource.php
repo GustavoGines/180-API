@@ -15,16 +15,17 @@ class ClientResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'phone' => $this->phone,
-            'email' => $this->email,
-            'address' => $this->address,
-            'addresses' => ClientAddressResource::collection($this->whenLoaded('addresses')),
-            'orders' => OrderResource::collection($this->whenLoaded('orders')),
-            'notes' => $this->notes,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
+            'id'           => $this->id,
+            'name'         => $this->name,
+            'phone'        => $this->phone,
+            'email'        => $this->email,
+            'ig_handle'    => $this->ig_handle,
+            'whatsapp_url' => $this->whatsapp_url,
+            'addresses'    => ClientAddressResource::collection($this->whenLoaded('addresses')),
+            'orders'       => OrderResource::collection($this->whenLoaded('orders')),
+            'notes'        => $this->notes,
+            'created_at'   => $this->created_at,
+            'updated_at'   => $this->updated_at,
         ];
     }
 }

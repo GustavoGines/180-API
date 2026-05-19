@@ -96,12 +96,7 @@ class AdminCatalogController extends Controller
                         ]);
                     }
                 }
-            } else {
-                // If variants key is missing (explicitly sent as empty or not sent in a way we want to clear?),
-                // typically we expect it to be an array. If empty array, clear all.
-                // Assuming specific "variants" key is present to update them.
-                $product->variants()->delete();
-            }
+            } // Si 'variants' no viene en el request, no se tocan las variantes existentes.
         });
 
         return response()->json(['message' => 'Product updated', 'data' => new ProductResource($product->load('variants'))]);

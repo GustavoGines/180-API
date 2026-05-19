@@ -231,7 +231,7 @@ class OrderController extends Controller
 
         OrderUpdated::dispatch($order);
 
-        return response()->json($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function destroy(Order $order)
