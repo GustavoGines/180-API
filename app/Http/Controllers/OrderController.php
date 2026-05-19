@@ -108,7 +108,7 @@ class OrderController extends Controller
 
         // Obtener URLs antiguas ANTES de procesar los nuevos items
         $order->load('items');
-        $oldPhotoUrls = $this->imageService->getPhotoUrls($order->items);
+        $oldPhotoUrls = $this->imageService->getPhotoUrls($order->items->all());
 
         // Procesar nuevos items (Placeholders)
         if (isset($validated['items']) && is_array($validated['items'])) {
@@ -180,6 +180,7 @@ class OrderController extends Controller
         if (isset($validated['is_fully_paid']) && $validated['is_fully_paid'] === true) {
             if (is_numeric($order->total)) {
                 $order->deposit = $order->total;
+                $order->is_paid = true; // Consistente con markAsPaid
                 $updated = true;
             } else {
                 Log::error("Intento de marcar como pagada la orden {$order->id} pero el total no es numérico.");

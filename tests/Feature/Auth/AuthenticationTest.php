@@ -2,7 +2,7 @@
 
 use App\Models\User;
 
-test('users can authenticate using the login screen', function () {
+test('los usuarios pueden autenticarse usando la pantalla de login', function () {
     $user = User::factory()->create();
 
     $response = $this->post('/login', [
@@ -14,7 +14,7 @@ test('users can authenticate using the login screen', function () {
     $response->assertNoContent();
 });
 
-test('users can not authenticate with invalid password', function () {
+test('los usuarios no pueden autenticarse con una contraseña inválida', function () {
     $user = User::factory()->create();
 
     $this->post('/login', [
@@ -25,7 +25,7 @@ test('users can not authenticate with invalid password', function () {
     $this->assertGuest();
 });
 
-test('users can logout', function () {
+test('los usuarios pueden cerrar sesión', function () {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)->post('/logout');
