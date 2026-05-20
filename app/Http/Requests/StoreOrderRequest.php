@@ -47,6 +47,7 @@ class StoreOrderRequest extends FormRequest
             'deposit' => ['nullable', 'numeric', 'min:0'],
             'delivery_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
+            'is_paid' => ['nullable', 'boolean'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:order_items,id'],
