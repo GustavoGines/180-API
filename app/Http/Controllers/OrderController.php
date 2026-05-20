@@ -7,6 +7,9 @@ use App\Events\OrderDeleted;
 use App\Events\OrderUpdated;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
+use App\Http\Requests\StoreBotOrderRequest;
+use App\Http\Requests\UpdateBotOrderRequest;
+use App\Services\BotOrderService;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Services\OrderImageService;
@@ -105,7 +108,7 @@ class OrderController extends Controller
 
         // Obtener URLs antiguas ANTES de procesar los nuevos items
         $order->load('items');
-        $oldPhotoUrls = $this->imageService->getPhotoUrls($order->items);
+        $oldPhotoUrls = $this->imageService->getPhotoUrls($order->items->all());
 
         // Procesar nuevos items (Placeholders)
         if (isset($validated['items']) && is_array($validated['items'])) {
@@ -177,6 +180,7 @@ class OrderController extends Controller
         if (isset($validated['is_fully_paid']) && $validated['is_fully_paid'] === true) {
             if (is_numeric($order->total)) {
                 $order->deposit = $order->total;
+                $order->is_paid = true; // Consistente con markAsPaid
                 $updated = true;
             } else {
                 Log::error("Intento de marcar como pagada la orden {$order->id} pero el total no es numérico.");
@@ -228,7 +232,7 @@ class OrderController extends Controller
 
         OrderUpdated::dispatch($order);
 
-        return response()->json($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function destroy(Order $order)
@@ -349,5 +353,86 @@ class OrderController extends Controller
             ];
         }, $itemsDataRaw);
         $order->items()->createMany($itemsData);
+    }
+
+    /**
+     * Endpoint especial para crear un pedido desde el bot (IA).
+     */
+    public function storeFromBot(StoreBotOrderRequest $request, BotOrderService $botService)
+    {
+        $validated = $request->validated();
+        
+        $order = DB::transaction(function () use ($validated, $botService) {
+            // 1. Traducir ítems del bot al formato estándar
+            $translatedItems = $botService->translateBotItems($validated['bot_items']);
+
+            // 2. Calcular totales (usando el formato traducido)
+            $itemsTotal = $this->priceCalculator->calculateItemsTotal($translatedItems);
+            $deliveryCost = 0.0; // Asumimos 0 si el bot no lo maneja, o se podría agregar
+            $calculatedGrandTotal = $this->priceCalculator->calculateGrandTotal($itemsTotal, $deliveryCost);
+
+            // 3. Preparar datos de la orden
+            $orderData = Arr::except($validated, ['bot_items']);
+            $orderData['total'] = $calculatedGrandTotal;
+            $orderData['deposit'] = 0.0; // Bot orders suelen entrar con seña 0 inicialmente
+            $orderData['is_paid'] = false;
+            
+            // 4. Crear orden
+            $order = Order::create($orderData);
+
+            // 5. Crear items
+            $this->createOrderItems($order, $translatedItems);
+
+            return $order;
+        });
+
+        OrderCreated::dispatch($order);
+
+        return new OrderResource($order->load(['client', 'items']));
+    }
+
+    /**
+     * Endpoint especial para actualizar un pedido desde el bot (IA).
+     */
+    public function updateFromBot(UpdateBotOrderRequest $request, Order $order, BotOrderService $botService)
+    {
+        $validated = $request->validated();
+
+        $updatedOrder = DB::transaction(function () use ($validated, $order, $botService) {
+            // 1. Preparar datos de la orden a actualizar
+            $orderData = Arr::except($validated, ['bot_items']);
+
+            // 2. Manejar la actualización de items si se envían
+            if (isset($validated['bot_items'])) {
+                // Traducir ítems del bot al formato estándar
+                $translatedItems = $botService->translateBotItems($validated['bot_items']);
+
+                // Calcular nuevos totales base de los ítems
+                $itemsTotal = $this->priceCalculator->calculateItemsTotal($translatedItems);
+                $deliveryCost = (float)($order->delivery_cost ?? 0); // Mantener el costo de envío actual de la base de datos
+                $calculatedGrandTotal = $this->priceCalculator->calculateGrandTotal($itemsTotal, $deliveryCost);
+
+                // Actualizar total y ajustar depósito si supera el nuevo total
+                $orderData['total'] = $calculatedGrandTotal;
+                $orderData['deposit'] = $this->priceCalculator->calculateValidDeposit((float)$order->deposit, $calculatedGrandTotal);
+
+                // Reemplazar items
+                $order->items()->delete();
+                $this->createOrderItems($order, $translatedItems);
+
+                // El bot no maneja fotos directamente por ahora, por lo que no hace falta $imageService->deleteOrphanedPhotos
+            }
+
+            // 3. Actualizar orden
+            if (!empty($orderData)) {
+                $order->update($orderData);
+            }
+
+            return $order;
+        });
+
+        OrderUpdated::dispatch($updatedOrder);
+
+        return new OrderResource($updatedOrder->load(['client', 'items']));
     }
 }

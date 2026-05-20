@@ -4,7 +4,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Notification;
 
-test('reset password link can be requested', function () {
+test('se puede solicitar un link para resetear contrasena', function () {
     Notification::fake();
 
     $user = User::factory()->create();
@@ -14,7 +14,7 @@ test('reset password link can be requested', function () {
     Notification::assertSentTo($user, ResetPassword::class);
 });
 
-test('password can be reset with valid token', function () {
+test('la contrasena se puede resetear con un token valido', function () {
     Notification::fake();
 
     $user = User::factory()->create();

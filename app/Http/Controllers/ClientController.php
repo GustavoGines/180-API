@@ -57,22 +57,13 @@ class ClientController extends Controller
                 });
             })
             ->orderBy('name')
-            ->paginate(500);
+            ->paginate(min((int) $request->query('per_page', 100), 200));
 
         return ClientResource::collection($clients);
     }
 
     public function store(Request $request)
     {
-        // Note: Switched to generic Request if StoreClientRequest is missing,
-        // but let's try to be safe. I'll use inline validation to be sure.
-        // Actually, the previous code used StoreClientRequest. I'll keep it but make sure to import it.
-        // If StoreClientRequest doesn't exist, this will error.
-        // Let's check if it exists first? No, "store" method used it.
-        // I'll stick to generic Request and Validate to be safe against missing Request class,
-        // OR I can blindly import it.
-        // Given complexity, I will use Request and manually validte to be robust.
-
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:20',

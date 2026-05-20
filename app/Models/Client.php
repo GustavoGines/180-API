@@ -24,7 +24,7 @@ class Client extends Model
         return $this->hasMany(ClientAddress::class);
     }
 
-    protected $dates = ['deleted_at'];
+
 
     /**
      * Define qué campos extra debe añadir el modelo al convertir a JSON.

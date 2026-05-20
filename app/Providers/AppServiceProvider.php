@@ -31,9 +31,6 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
-
-        // DB::statement("SET TIME ZONE 'America/Argentina/Buenos_Aires'");
 
         $dateSerializer = function ($c) {
             return $c->setTimezone(config('app.timezone', 'America/Argentina/Buenos_Aires'))
@@ -44,7 +41,7 @@ class AppServiceProvider extends ServiceProvider
         CarbonImmutable::serializeUsing($dateSerializer);
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000'); // <-- Ponemos un valor por defecto para pruebas locales
+            $frontendUrl = config('services.frontend_url', 'http://localhost:3000');
 
             return $frontendUrl.'?email='.$notifiable->getEmailForPasswordReset().'&token='.$token;
         });

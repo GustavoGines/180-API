@@ -30,7 +30,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function test_can_create_order()
+    public function test_puede_crear_un_pedido()
     {
         // 1. Preparar datos
         $client = Client::first() ?? Client::factory()->create();
@@ -69,7 +69,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function test_cannot_create_order_with_invalid_dates()
+    public function test_no_puede_crear_pedido_con_fechas_invalidas()
     {
         $client = Client::first() ?? Client::factory()->create();
 
@@ -90,7 +90,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function test_cannot_create_order_with_excessive_deposit()
+    public function test_no_puede_crear_pedido_con_deposito_excesivo()
     {
         $client = Client::first() ?? Client::factory()->create();
 
@@ -112,7 +112,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function test_can_update_order()
+    public function test_puede_actualizar_un_pedido()
     {
         // 1. Crear orden inicial
         $client = Client::first() ?? Client::factory()->create();
