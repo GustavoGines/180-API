@@ -45,8 +45,12 @@ class Client extends Model
         // 1. Limpia el número
         $sanitizedPhone = preg_replace('/[^0-9]/', '', $this->phone);
         
-        // 2. Añade el prefijo 549
-        $whatsappNumber = '549' . $sanitizedPhone;
+        // 2. Añade el prefijo 549 solo si no lo tiene ya
+        if (str_starts_with($sanitizedPhone, '549')) {
+            $whatsappNumber = $sanitizedPhone;
+        } else {
+            $whatsappNumber = '549' . ltrim($sanitizedPhone, '0'); // También quitamos ceros a la izquierda por si guardaron 0370...
+        }
 
         // 3. Retorna la URL completa
         return 'https://wa.me/' . $whatsappNumber;
