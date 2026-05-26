@@ -160,7 +160,7 @@ class ClientControllerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.ig_handle', 'test.ig')
-            ->assertJsonPath('data.whatsapp_url', "https://wa.me/5495493704123456")
+            ->assertJsonPath('data.whatsapp_url', "https://wa.me/5493704123456")
             ->assertJsonMissing(['address']); // campo eliminado en B2
     }
 }
