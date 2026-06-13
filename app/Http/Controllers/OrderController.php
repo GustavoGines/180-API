@@ -274,6 +274,18 @@ class OrderController extends Controller
         $requestedDate = \Carbon\Carbon::parse($dateStr);
         $requestedDateTime = \Carbon\Carbon::parse("{$dateStr} {$timeStr}");
         $now = \Carbon\Carbon::now();
+        $hoursDifference = $now->diffInHours($requestedDateTime, false);
+
+        // Regla 0: Fecha Pasada
+        // Si el pedido es para el pasado, lo rechazamos por obvias razones
+        if ($hoursDifference < 0 && ! $requestedDate->isToday()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'past_date',
+                'message' => 'La fecha solicitada ya pasó.',
+                'express_review_needed' => false,
+            ]);
+        }
 
         // Regla 1: Días de Descanso (Martes cerrado)
         if ($requestedDate->isTuesday()) {
@@ -304,17 +316,6 @@ class OrderController extends Controller
         }
 
         // Regla 3: Anticipación Mínima (< 24 horas)
-        $hoursDifference = $now->diffInHours($requestedDateTime, false);
-
-        // Si el pedido es para el pasado, lo rechazamos por obvias razones
-        if ($hoursDifference < 0 && ! $requestedDate->isToday()) {
-            return response()->json([
-                'available' => false,
-                'reason' => 'past_date',
-                'message' => 'La fecha solicitada ya pasó.',
-                'express_review_needed' => false,
-            ]);
-        }
 
         // Si falta menos de 24 horas (pero es a futuro o es para hoy)
         if ($requestedDateTime->copy()->subHours(24)->isPast()) {
