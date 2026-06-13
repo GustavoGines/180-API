@@ -52,7 +52,7 @@ class StoreOrderRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:order_items,id'],
             'items.*.name' => ['required', 'string', 'max:191'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.qty' => ['required', 'numeric', 'min:0.1'],
 
             'items.*.base_price' => ['required', 'numeric', 'min:0'],
             'items.*.adjustments' => ['nullable', 'numeric'],
@@ -92,7 +92,7 @@ class StoreOrderRequest extends FormRequest
             if (is_array($items) && ! empty($items)) {
                 $calculatedItemsTotal = 0.0;
                 foreach ($items as $key => $item) {
-                    $qty = isset($item['qty']) && is_numeric($item['qty']) ? (int) $item['qty'] : 0;
+                    $qty = isset($item['qty']) && is_numeric($item['qty']) ? (float) $item['qty'] : 0;
                     $basePrice = isset($item['base_price']) && is_numeric($item['base_price']) ? (float) $item['base_price'] : -1.0;
                     $adjustments = isset($item['adjustments']) && is_numeric($item['adjustments']) ? (float) $item['adjustments'] : 0.0;
 
