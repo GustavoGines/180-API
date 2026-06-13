@@ -33,7 +33,7 @@ class StoreBotOrderRequest extends FormRequest
             'bot_items' => 'required|array|min:1',
             'bot_items.*.category_name' => 'required|string',
             'bot_items.*.product_name' => 'required|string',
-            'bot_items.*.qty' => 'required|integer|min:1',
+            'bot_items.*.qty' => 'required|numeric|min:0.1',
             'bot_items.*.base_price' => 'required|numeric|min:0',
             'bot_items.*.adjustments' => 'nullable|numeric',
             'bot_items.*.weight_kg' => 'nullable|numeric|min:0.5',

@@ -31,7 +31,7 @@ class UpdateBotOrderRequest extends FormRequest
             'bot_items' => 'sometimes|array|min:1',
             'bot_items.*.category_name' => 'required_with:bot_items|string',
             'bot_items.*.product_name' => 'required_with:bot_items|string',
-            'bot_items.*.qty' => 'required_with:bot_items|integer|min:1',
+            'bot_items.*.qty' => 'required_with:bot_items|numeric|min:0.1',
             'bot_items.*.base_price' => 'required_with:bot_items|numeric|min:0',
             'bot_items.*.adjustments' => 'nullable|numeric',
             'bot_items.*.weight_kg' => 'nullable|numeric|min:0.5',
