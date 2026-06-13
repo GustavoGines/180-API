@@ -87,7 +87,7 @@ class AvailabilityTest extends TestCase
     /** @test */
     public function test_fecha_pasada_retorna_past_date()
     {
-        $pastDate = Carbon::now()->subDays(3)->format('Y-m-d');
+        $pastDate = Carbon::now()->subDays(4)->format('Y-m-d');
 
         $response = $this->getAvailability($pastDate, '10:00');
 
