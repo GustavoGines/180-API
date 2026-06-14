@@ -20,14 +20,20 @@ class BotOrderService
      */
     public function translateBotItems(array $botItems): array
     {
-        // --- Pre-carga del catálogo completo en memoria (elimina N+1) ---
-        // En lugar de hacer 1 query por ítem, hacemos 3 queries totales para todo el lote.
+        // --- Pre-carga del catálogo completo en memoria (elimina N+1) con Caché ---
+        // En lugar de hacer queries cada vez, cacheamos el catálogo 1 hora.
+        
+        $allProducts = \Illuminate\Support\Facades\Cache::remember('catalog.products', 3600, function () {
+            return Product::all();
+        })->keyBy(fn ($p) => mb_strtolower(trim($p->name), 'UTF-8') . '|' . $p->category);
 
-        $allProducts = Product::all()->keyBy(fn ($p) => mb_strtolower(trim($p->name), 'UTF-8') . '|' . $p->category);
+        $allFillings = \Illuminate\Support\Facades\Cache::remember('catalog.fillings', 3600, function () {
+            return Filling::all();
+        })->keyBy(fn ($f) => mb_strtolower(trim($f->name), 'UTF-8'));
 
-        $allFillings = Filling::all()->keyBy(fn ($f) => mb_strtolower(trim($f->name), 'UTF-8'));
-
-        $allExtras = Extra::all()->keyBy(fn ($e) => mb_strtolower(trim($e->name), 'UTF-8'));
+        $allExtras = \Illuminate\Support\Facades\Cache::remember('catalog.extras', 3600, function () {
+            return Extra::all();
+        })->keyBy(fn ($e) => mb_strtolower(trim($e->name), 'UTF-8'));
 
         // --- Loop de traducción (sin queries adicionales) ---
         $translatedItems = [];
