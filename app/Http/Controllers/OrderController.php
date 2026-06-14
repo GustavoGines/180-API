@@ -41,7 +41,7 @@ class OrderController extends Controller
             ->when($status, fn ($q) => $q->where('status', $status))
             ->orderBy('event_date')
             ->orderBy('start_time')
-            ->paginate($request->query('per_page', 20));
+            ->paginate(min((int) $request->query('per_page', 20), 500));
 
         return OrderResource::collection($orders);
     }
