@@ -27,7 +27,6 @@ class OrderResource extends JsonResource
             'is_paid' => $this->is_paid,
             'notes' => $this->notes,
             'client_address_id' => $this->client_address_id,
-            'google_event_id' => $this->google_event_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 

@@ -77,7 +77,7 @@ class OrderController extends Controller
 
             // 5. Crear items
             if (! empty($validated['items'])) {
-                $this->createOrderItems($order, $validated['items']);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             return $order;
@@ -100,9 +100,7 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $validated = $request->validated();
         $files = $request->file('files') ?? [];
@@ -138,7 +136,7 @@ class OrderController extends Controller
             // 3. Reemplazar Items
             $order->items()->delete();
             if (isset($validated['items']) && is_array($validated['items'])) {
-                $this->createOrderItems($order, $validated['items']);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             // 4. Gestionar borrado de imágenes huérfanas
@@ -156,9 +154,7 @@ class OrderController extends Controller
 
     public function updateStatus(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $validated = $request->validate([
             'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
@@ -198,9 +194,7 @@ class OrderController extends Controller
 
     public function markAsPaid(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         if (! is_numeric($order->total) || $order->total <= 0 || $order->deposit >= $order->total) {
             return response()->json([
@@ -219,9 +213,7 @@ class OrderController extends Controller
 
     public function markAsUnpaid(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $order->is_paid = false;
 
@@ -238,9 +230,7 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         // Capturamos datos necesarios para el evento ANTES de borrar
         $orderId = $order->id;
@@ -339,26 +329,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Helper para transformar y crear items.
-     */
-    private function createOrderItems(Order $order, array $itemsDataRaw)
-    {
-        $itemsData = array_map(function ($item) {
-            return [
-                'name' => $item['name'],
-                'qty' => $item['qty'],
-                'base_price' => $item['base_price'],
-                'adjustments' => $item['adjustments'] ?? 0,
-                'customization_notes' => $item['customization_notes'] ?? null,
-                'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                        ? $item['customization_json']
-                                        : null,
-            ];
-        }, $itemsDataRaw);
-        $order->items()->createMany($itemsData);
-    }
-
-    /**
      * Endpoint especial para crear un pedido desde el bot (IA).
      */
     public function storeFromBot(StoreBotOrderRequest $request, BotOrderService $botService)
@@ -384,7 +354,7 @@ class OrderController extends Controller
             $order = Order::create($orderData);
 
             // 5. Crear items
-            $this->createOrderItems($order, $translatedItems);
+            app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
             return $order;
         });
@@ -421,7 +391,7 @@ class OrderController extends Controller
 
                 // Reemplazar items
                 $order->items()->delete();
-                $this->createOrderItems($order, $translatedItems);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
                 // El bot no maneja fotos directamente por ahora, por lo que no hace falta $imageService->deleteOrphanedPhotos
             }
