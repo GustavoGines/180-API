@@ -41,7 +41,7 @@ class OrderController extends Controller
             ->when($status, fn ($q) => $q->where('status', $status))
             ->orderBy('event_date')
             ->orderBy('start_time')
-            ->paginate($request->query('per_page', 20));
+            ->paginate(min((int) $request->query('per_page', 20), 500));
 
         return OrderResource::collection($orders);
     }
@@ -77,15 +77,16 @@ class OrderController extends Controller
 
             // 5. Crear items
             if (! empty($validated['items'])) {
-                $this->createOrderItems($order, $validated['items']);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             return $order;
         });
 
-        // 6. Disparar evento (fuera de transacción para evitar race conditions con listeners async si fallara commit)
-        // Nota: Si el listener es async (queue), es seguro.
-        OrderCreated::dispatch($order);
+        // 6. Disparar evento
+        // Usamos DB::afterCommit para asegurar que solo se dispare si el commit es exitoso,
+        // incluso si este método es llamado dentro de una transacción superior.
+        DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
         return new OrderResource($order->load(['client', 'items']));
     }
@@ -99,9 +100,7 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $validated = $request->validated();
         $files = $request->file('files') ?? [];
@@ -137,7 +136,7 @@ class OrderController extends Controller
             // 3. Reemplazar Items
             $order->items()->delete();
             if (isset($validated['items']) && is_array($validated['items'])) {
-                $this->createOrderItems($order, $validated['items']);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             // 4. Gestionar borrado de imágenes huérfanas
@@ -148,16 +147,14 @@ class OrderController extends Controller
             return $order;
         });
 
-        OrderUpdated::dispatch($updatedOrder);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
         return new OrderResource($updatedOrder->load(['client', 'items']));
     }
 
     public function updateStatus(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $validated = $request->validate([
             'status' => ['sometimes', 'required_without:is_fully_paid', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
@@ -189,7 +186,7 @@ class OrderController extends Controller
 
         if ($updated) {
             $order->save();
-            OrderUpdated::dispatch($order);
+            DB::afterCommit(fn () => OrderUpdated::dispatch($order));
         }
 
         return new OrderResource($order->fresh(['client', 'items']));
@@ -197,9 +194,7 @@ class OrderController extends Controller
 
     public function markAsPaid(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         if (! is_numeric($order->total) || $order->total <= 0 || $order->deposit >= $order->total) {
             return response()->json([
@@ -211,16 +206,14 @@ class OrderController extends Controller
         $order->is_paid = true;
         $order->save();
 
-        OrderUpdated::dispatch($order);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
         return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function markAsUnpaid(Request $request, Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         $order->is_paid = false;
 
@@ -230,16 +223,14 @@ class OrderController extends Controller
 
         $order->save();
 
-        OrderUpdated::dispatch($order);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
         return new OrderResource($order->fresh(['client', 'items']));
     }
 
     public function destroy(Order $order)
     {
-        if (! Gate::allows('manage-orders')) {
-            abort(403, __('messages.unauthorized_action'));
-        }
+        $this->authorize('manage', $order);
 
         // Capturamos datos necesarios para el evento ANTES de borrar
         $orderId = $order->id;
@@ -287,12 +278,13 @@ class OrderController extends Controller
             ]);
         }
 
-        // Regla 1: Días de Descanso (Martes cerrado)
-        if ($requestedDate->isTuesday()) {
+        // Regla 1: Días de Descanso (configurable)
+        $closedDays = explode(',', config('shop.closed_days', '2'));
+        if (in_array((string)$requestedDate->dayOfWeekIso, $closedDays)) {
             return response()->json([
                 'available' => false,
                 'reason' => 'closed',
-                'message' => 'Los martes estamos cerrados.',
+                'message' => 'El local se encuentra cerrado este día.',
                 'express_review_needed' => false,
             ]);
         }
@@ -337,26 +329,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Helper para transformar y crear items.
-     */
-    private function createOrderItems(Order $order, array $itemsDataRaw)
-    {
-        $itemsData = array_map(function ($item) {
-            return [
-                'name' => $item['name'],
-                'qty' => $item['qty'],
-                'base_price' => $item['base_price'],
-                'adjustments' => $item['adjustments'] ?? 0,
-                'customization_notes' => $item['customization_notes'] ?? null,
-                'customization_json' => isset($item['customization_json']) && is_array($item['customization_json'])
-                                        ? $item['customization_json']
-                                        : null,
-            ];
-        }, $itemsDataRaw);
-        $order->items()->createMany($itemsData);
-    }
-
-    /**
      * Endpoint especial para crear un pedido desde el bot (IA).
      */
     public function storeFromBot(StoreBotOrderRequest $request, BotOrderService $botService)
@@ -382,12 +354,12 @@ class OrderController extends Controller
             $order = Order::create($orderData);
 
             // 5. Crear items
-            $this->createOrderItems($order, $translatedItems);
+            app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
             return $order;
         });
 
-        OrderCreated::dispatch($order);
+        DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
         return new OrderResource($order->load(['client', 'items']));
     }
@@ -419,7 +391,7 @@ class OrderController extends Controller
 
                 // Reemplazar items
                 $order->items()->delete();
-                $this->createOrderItems($order, $translatedItems);
+                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
                 // El bot no maneja fotos directamente por ahora, por lo que no hace falta $imageService->deleteOrphanedPhotos
             }
@@ -432,7 +404,7 @@ class OrderController extends Controller
             return $order;
         });
 
-        OrderUpdated::dispatch($updatedOrder);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
         return new OrderResource($updatedOrder->load(['client', 'items']));
     }

@@ -28,10 +28,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/token', [AuthController::class, 'createToken'])
     ->middleware('throttle:10,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // --- Usuario ---
-    Route::get('/user', fn (Request $request) => new UserResource($request->user()));
     Route::get('/me', fn () => new UserResource(auth()->user()));
 
     // --- Catálogo ---
@@ -59,8 +58,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Pedidos ---
     // Rutas para el Bot (IA) - Se ubican antes del wildcard {order}
-    Route::post('/orders/bot', [OrderController::class, 'storeFromBot']);
-    Route::put('/orders/bot/{order}', [OrderController::class, 'updateFromBot']);
+    Route::post('/orders/bot', [OrderController::class, 'storeFromBot'])
+        ->withoutMiddleware('throttle:60,1');
+    Route::put('/orders/bot/{order}', [OrderController::class, 'updateFromBot'])
+        ->withoutMiddleware('throttle:60,1');
 
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
@@ -83,7 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * Elimina un token de dispositivo (FCM) específico
      * perteneciente al usuario autenticado.
      */
-    Route::post('/devices/unregister', function (Request $request) {
+    Route::delete('/devices/unregister', function (Request $request) {
 
         // 1. Validar que nos enviaron el token
         $request->validate([
