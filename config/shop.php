@@ -13,6 +13,10 @@ return [
     // Límite estándar de pedidos por día
     'default_daily_capacity' => 10,
 
+    // Días de la semana cerrados (1=Lunes, 7=Domingo). Por defecto Martes (2).
+    // Separar con comas si hay múltiples, ej: '1,2'
+    'closed_days' => env('SHOP_CLOSED_DAYS', '2'),
+
     // Fechas especiales donde el límite de pedidos se amplía o reduce
     // Formato: 'YYYY-MM-DD' => capacidad
     'special_capacities' => [

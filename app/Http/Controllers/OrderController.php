@@ -83,9 +83,10 @@ class OrderController extends Controller
             return $order;
         });
 
-        // 6. Disparar evento (fuera de transacción para evitar race conditions con listeners async si fallara commit)
-        // Nota: Si el listener es async (queue), es seguro.
-        OrderCreated::dispatch($order);
+        // 6. Disparar evento
+        // Usamos DB::afterCommit para asegurar que solo se dispare si el commit es exitoso,
+        // incluso si este método es llamado dentro de una transacción superior.
+        DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
         return new OrderResource($order->load(['client', 'items']));
     }
@@ -148,7 +149,7 @@ class OrderController extends Controller
             return $order;
         });
 
-        OrderUpdated::dispatch($updatedOrder);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
         return new OrderResource($updatedOrder->load(['client', 'items']));
     }
@@ -189,7 +190,7 @@ class OrderController extends Controller
 
         if ($updated) {
             $order->save();
-            OrderUpdated::dispatch($order);
+            DB::afterCommit(fn () => OrderUpdated::dispatch($order));
         }
 
         return new OrderResource($order->fresh(['client', 'items']));
@@ -211,7 +212,7 @@ class OrderController extends Controller
         $order->is_paid = true;
         $order->save();
 
-        OrderUpdated::dispatch($order);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
         return new OrderResource($order->fresh(['client', 'items']));
     }
@@ -230,7 +231,7 @@ class OrderController extends Controller
 
         $order->save();
 
-        OrderUpdated::dispatch($order);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
         return new OrderResource($order->fresh(['client', 'items']));
     }
@@ -287,12 +288,13 @@ class OrderController extends Controller
             ]);
         }
 
-        // Regla 1: Días de Descanso (Martes cerrado)
-        if ($requestedDate->isTuesday()) {
+        // Regla 1: Días de Descanso (configurable)
+        $closedDays = explode(',', config('shop.closed_days', '2'));
+        if (in_array((string)$requestedDate->dayOfWeekIso, $closedDays)) {
             return response()->json([
                 'available' => false,
                 'reason' => 'closed',
-                'message' => 'Los martes estamos cerrados.',
+                'message' => 'El local se encuentra cerrado este día.',
                 'express_review_needed' => false,
             ]);
         }
@@ -387,7 +389,7 @@ class OrderController extends Controller
             return $order;
         });
 
-        OrderCreated::dispatch($order);
+        DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
         return new OrderResource($order->load(['client', 'items']));
     }
@@ -432,7 +434,7 @@ class OrderController extends Controller
             return $order;
         });
 
-        OrderUpdated::dispatch($updatedOrder);
+        DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
         return new OrderResource($updatedOrder->load(['client', 'items']));
     }

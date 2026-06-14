@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreClientRequest; // Assuming this exists or using Request
+use App\Http\Requests\StoreClientRequest;
+use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
 use Illuminate\Http\Request;
@@ -62,15 +63,9 @@ class ClientController extends Controller
         return ClientResource::collection($clients);
     }
 
-    public function store(Request $request)
+    public function store(StoreClientRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'notes' => 'nullable|string',
-            // Add other fields as necessary
-        ]);
+        $validated = $request->validated();
 
         $name = trim($validated['name']);
         if (isset($validated['phone'])) {
@@ -107,14 +102,9 @@ class ClientController extends Controller
         return new ClientResource($client);
     }
 
-    public function update(Request $request, Client $client) // relaxed to Request
+    public function update(UpdateClientRequest $request, Client $client) // relaxed to Request
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'notes' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         $name = trim($validated['name']);
         if (isset($validated['phone'])) {

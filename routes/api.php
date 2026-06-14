@@ -31,7 +31,6 @@ Route::post('/auth/token', [AuthController::class, 'createToken'])
 Route::middleware('auth:sanctum')->group(function () {
 
     // --- Usuario ---
-    Route::get('/user', fn (Request $request) => new UserResource($request->user()));
     Route::get('/me', fn () => new UserResource(auth()->user()));
 
     // --- Catálogo ---
@@ -83,7 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * Elimina un token de dispositivo (FCM) específico
      * perteneciente al usuario autenticado.
      */
-    Route::post('/devices/unregister', function (Request $request) {
+    Route::delete('/devices/unregister', function (Request $request) {
 
         // 1. Validar que nos enviaron el token
         $request->validate([
