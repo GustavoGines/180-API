@@ -33,9 +33,17 @@ class OrderController extends Controller
         $fromDate = $request->query('from');
         $toDate = $request->query('to');
         $status = $request->query('status');
+        $search = $request->query('search');
 
         $orders = Order::query()
             ->with(['client', 'items'])
+            ->when($search, function ($q, $search) {
+                $q->where(function ($query) use ($search) {
+                    $query->whereHas('client', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
+                          ->orWhere('id', 'like', "%{$search}%")
+                          ->orWhere('notes', 'like', "%{$search}%");
+                });
+            })
             ->when($fromDate, fn ($q) => $q->whereDate('event_date', '>=', $fromDate))
             ->when($toDate, fn ($q) => $q->whereDate('event_date', '<=', $toDate))
             ->when($status, fn ($q) => $q->where('status', $status))
