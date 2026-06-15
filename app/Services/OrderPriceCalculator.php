@@ -33,7 +33,7 @@ class OrderPriceCalculator
      */
     public function calculateGrandTotal(float $itemsTotal, float $deliveryCost): float
     {
-        return $itemsTotal + $deliveryCost;
+        return max(0, $itemsTotal + $deliveryCost);
     }
 
     /**
