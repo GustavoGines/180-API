@@ -40,7 +40,7 @@ class OrderController extends Controller
             ->when($search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->whereHas('client', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                          ->orWhere('id', 'like', "%{$search}%")
+                          ->orWhereRaw('id::text like ?', ["%{$search}%"])
                           ->orWhere('notes', 'like', "%{$search}%");
                 });
             })
@@ -85,7 +85,7 @@ class OrderController extends Controller
 
             // 5. Crear items
             if (! empty($validated['items'])) {
-                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
+                app(\App\Actions\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             return $order;
@@ -144,7 +144,7 @@ class OrderController extends Controller
             // 3. Reemplazar Items
             $order->items()->delete();
             if (isset($validated['items']) && is_array($validated['items'])) {
-                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $validated['items']);
+                app(\App\Actions\CreateOrderItemsAction::class)->execute($order, $validated['items']);
             }
 
             // 4. Gestionar borrado de imágenes huérfanas
@@ -362,7 +362,7 @@ class OrderController extends Controller
             $order = Order::create($orderData);
 
             // 5. Crear items
-            app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
+            app(\App\Actions\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
             return $order;
         });
@@ -399,7 +399,7 @@ class OrderController extends Controller
 
                 // Reemplazar items
                 $order->items()->delete();
-                app(\\App\\Actions\\CreateOrderItemsAction::class)->execute($order, $translatedItems);
+                app(\App\Actions\CreateOrderItemsAction::class)->execute($order, $translatedItems);
 
                 // El bot no maneja fotos directamente por ahora, por lo que no hace falta $imageService->deleteOrphanedPhotos
             }
