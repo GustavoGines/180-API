@@ -14,7 +14,7 @@ class OrderPriceCalculator
     {
         $itemsTotal = 0.0;
         foreach ($items as $item) {
-            $qty = (int) $item['qty'];
+            $qty = (float) $item['qty'];
             $basePrice = (float) $item['base_price'];
             $adjustments = (float) ($item['adjustments'] ?? 0);
             $finalUnitPrice = $basePrice + $adjustments;
