@@ -25,7 +25,14 @@ class StoreOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id' => ['required', 'exists:clients,id'],
+            'client_id' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    if (!\App\Models\Client::withTrashed()->where('id', $value)->exists()) {
+                        $fail('El cliente seleccionado es inválido o no existe.');
+                    }
+                }
+            ],
             // CÓDIGO LARAVEL CORREGIDO
             'client_address_id' => [
                 // La dirección es opcional por defecto.

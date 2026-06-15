@@ -26,7 +26,14 @@ class UpdateOrderRequest extends FormRequest
         // Reglas muy similares al Store, pero quizás 'event_date' no sea obligatorio si es PATCH?
         // El controller actual usa PUT y valida todo de nuevo, así que mantendremos 'required'.
         return [
-            'client_id' => ['required', 'exists:clients,id'],
+            'client_id' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    if (!\App\Models\Client::withTrashed()->where('id', $value)->exists()) {
+                        $fail('El cliente seleccionado es inválido o no existe.');
+                    }
+                }
+            ],
             'client_address_id' => [
                 'nullable',
                 'integer',
