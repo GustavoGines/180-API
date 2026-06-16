@@ -91,7 +91,13 @@ Si la conversación es casual, usa type null.']
             }
 
             // Segunda llamada a OpenAI para que arme la respuesta amigable con la data
-            $finalResponse = $this->callOpenAI($messages, $tools);
+            $finalResponse = $this->callOpenAI($messages, $tools, true);
+            
+            if (isset($finalResponse['error'])) {
+                 Log::error('OpenAI API Error (2nd call): ' . json_encode($finalResponse['error']));
+                 return response()->json(['error' => 'Error al comunicarse con OpenAI.'], 502);
+            }
+            
             $finalContent = $finalResponse['choices'][0]['message']['content'];
             
             $decodedContent = json_decode($finalContent, true) ?? [];
@@ -105,7 +111,8 @@ Si la conversación es casual, usa type null.']
         }
 
         // Si no usó tool, devuelve la respuesta directa
-        $decodedContent = json_decode($responseMessage['content'], true) ?? [];
+        $decodedContent = json_decode($responseMessage['content'], true);
+        
         return response()->json([
             'reply' => $decodedContent['reply'] ?? $responseMessage['content'],
             'ui_widget' => $decodedContent['ui_widget'] ?? null,
@@ -113,13 +120,16 @@ Si la conversación es casual, usa type null.']
         ]);
     }
 
-    private function callOpenAI(array $messages, array $tools = null)
+    private function callOpenAI(array $messages, ?array $tools = null, bool $forceJson = false)
     {
         $payload = [
             'model' => 'gpt-4o-mini',
             'messages' => $messages,
-            'response_format' => ['type' => 'json_object']
         ];
+        
+        if ($forceJson) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
         
         if ($tools) {
             $payload['tools'] = $tools;

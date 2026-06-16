@@ -10,6 +10,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
 use App\Http\Controllers\CopilotController;
+use App\Http\Controllers\AiAssistantController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -31,8 +32,9 @@ Route::post('/auth/token', [AuthController::class, 'createToken'])
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
-    // --- Copiloto 180 ---
+    // Copilot AI
     Route::post('/copilot/process', [CopilotController::class, 'process']);
+    Route::post('/ai/process-voice', [AiAssistantController::class, 'processVoice']);
 
     // --- Usuario ---
     Route::get('/me', fn () => new UserResource(auth()->user()));
