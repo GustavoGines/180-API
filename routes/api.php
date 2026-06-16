@@ -9,6 +9,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
+use App\Http\Controllers\CopilotController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,9 @@ Route::post('/auth/token', [AuthController::class, 'createToken'])
     ->middleware('throttle:10,1');
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+
+    // --- Copiloto 180 ---
+    Route::post('/copilot/process', [CopilotController::class, 'process']);
 
     // --- Usuario ---
     Route::get('/me', fn () => new UserResource(auth()->user()));
