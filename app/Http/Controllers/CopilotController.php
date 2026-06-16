@@ -20,7 +20,20 @@ class CopilotController extends Controller
         $today = now()->format('Y-m-d');
         
         $messages = [
-            ['role' => 'system', 'content' => 'Eres Copiloto 180, el asistente inteligente de una pastelería. Hoy es ' . $today . '. Usa esta fecha como referencia para resolver palabras como "hoy" o "mañana". Tu trabajo es ayudar a los dueños a gestionar el negocio usando las herramientas disponibles cuando se necesiten datos reales. Proporciona respuestas cortas y claras.']
+            ['role' => 'system', 'content' => 'Eres Copiloto 180, el asistente inteligente de una pastelería. Hoy es ' . $today . '. Usa esta fecha como referencia para resolver palabras como "hoy" o "mañana". Tu trabajo es ayudar a los dueños a gestionar el negocio usando las herramientas disponibles. 
+IMPORTANTE: Debes responder SIEMPRE con una estructura JSON estricta. El formato debe ser:
+{
+  "reply": "Texto amigable para el usuario",
+  "ui_widget": {
+    "type": "order_card", // o null si es solo una charla normal
+    "data": {
+      "title": "Pedido #123",
+      "subtitle": "Cliente: Nombre",
+      "total": "$5000"
+    }
+  }
+}
+Si la conversación es casual, usa type null.']
         ];
         
         $messages = array_merge($messages, $inputMessages);
@@ -81,11 +94,23 @@ class CopilotController extends Controller
             $finalResponse = $this->callOpenAI($messages, $tools);
             $finalContent = $finalResponse['choices'][0]['message']['content'];
             
-            return response()->json(['reply' => $finalContent, 'tool_used' => true, 'raw_tool_calls' => $responseMessage['tool_calls']]);
+            $decodedContent = json_decode($finalContent, true) ?? [];
+            
+            return response()->json([
+                'reply' => $decodedContent['reply'] ?? $finalContent,
+                'ui_widget' => $decodedContent['ui_widget'] ?? null,
+                'tool_used' => true, 
+                'raw_tool_calls' => $responseMessage['tool_calls']
+            ]);
         }
 
         // Si no usó tool, devuelve la respuesta directa
-        return response()->json(['reply' => $responseMessage['content'], 'tool_used' => false]);
+        $decodedContent = json_decode($responseMessage['content'], true) ?? [];
+        return response()->json([
+            'reply' => $decodedContent['reply'] ?? $responseMessage['content'],
+            'ui_widget' => $decodedContent['ui_widget'] ?? null,
+            'tool_used' => false
+        ]);
     }
 
     private function callOpenAI(array $messages, array $tools = null)
@@ -93,6 +118,7 @@ class CopilotController extends Controller
         $payload = [
             'model' => 'gpt-4o-mini',
             'messages' => $messages,
+            'response_format' => ['type' => 'json_object']
         ];
         
         if ($tools) {
