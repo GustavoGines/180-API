@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\Product;
 use App\Models\Client;
+use Illuminate\Support\Str;
 
 class AiAssistantController extends Controller
 {
@@ -46,7 +47,7 @@ class AiAssistantController extends Controller
             $products = Product::all();
 
             foreach ($intentData['items'] as $item) {
-                $matchedProduct = $this->findBestMatch($item['product_name'], $products);
+                $matchedProduct = $this->findBestMatch($item['product_name'], $products, 'name', 45);
                 $parsedItems[] = [
                     'product_id' => $matchedProduct ? $matchedProduct->id : null,
                     'original_name' => $item['product_name'],
@@ -61,7 +62,8 @@ class AiAssistantController extends Controller
             $isNewClient = true;
             
             if ($clientName) {
-                $existingClient = Client::where('name', 'LIKE', '%' . $clientName . '%')->first();
+                $clients = Client::select('id', 'name')->get();
+                $existingClient = $this->findBestMatch($clientName, $clients, 'name', 70);
                 if ($existingClient) {
                     $isNewClient = false;
                     $responseData['client_id'] = $existingClient->id;
@@ -127,28 +129,33 @@ Responde SIEMPRE en formato JSON estricto.";
         return json_decode($content, true);
     }
 
-    private function findBestMatch(string $searchTerm, $products)
+    /**
+     * Motor de búsqueda algorítmica para encontrar la mejor coincidencia.
+     */
+    private function findBestMatch(string $search, $collection, string $field, int $minPercentage)
     {
         $bestMatch = null;
-        $highestSimilarity = 0;
-        $searchTerm = strtolower(trim($searchTerm));
+        $highestPercentage = 0;
+        
+        $searchNormalized = Str::ascii(Str::lower($search));
 
-        foreach ($products as $product) {
-            $productName = strtolower($product->name);
+        foreach ($collection as $item) {
+            $target = Str::ascii(Str::lower($item->{$field}));
             
-            // Si el nombre del producto está contenido exactamente en la búsqueda (o viceversa), le damos bono
-            if (str_contains($productName, $searchTerm) || str_contains($searchTerm, $productName)) {
-                $similarity = 90; 
-            } else {
-                similar_text($searchTerm, $productName, $similarity);
+            if (strlen($searchNormalized) == 0 || strlen($target) == 0) continue;
+            
+            similar_text($searchNormalized, $target, $percent);
+            
+            if (str_contains($target, $searchNormalized) || str_contains($searchNormalized, $target)) {
+                $percent += 20; 
             }
 
-            if ($similarity > $highestSimilarity && $similarity > 60) {
-                $highestSimilarity = $similarity;
-                $bestMatch = $product;
+            if ($percent > $highestPercentage) {
+                $highestPercentage = $percent;
+                $bestMatch = $item;
             }
         }
-
-        return $bestMatch;
+        
+        return $highestPercentage >= $minPercentage ? $bestMatch : null;
     }
 }
