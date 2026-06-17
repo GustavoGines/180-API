@@ -76,12 +76,32 @@ class AiAssistantController extends Controller
                 $clientName = $args['client_name'] ?? null;
                 $isNewClient = true;
                 $clientId = null;
+                $suggestedClients = [];
 
                 if ($clientName) {
-                    $existingClient = $this->brainService->matchClient($clientName, 70);
-                    if ($existingClient) {
+                    $matchedClients = $this->brainService->matchClients($clientName, 50);
+
+                    if (count($matchedClients) === 1 && $matchedClients[0]['score'] >= 70) {
+                        // Única coincidencia y aceptable
                         $isNewClient = false;
-                        $clientId = $existingClient->id;
+                        $clientId = $matchedClients[0]['item']->id;
+                    } elseif (count($matchedClients) > 0) {
+                        // Varias coincidencias o una sola con puntaje bajo
+                        // Comprobamos si la primera coincidencia tiene un puntaje casi perfecto y la segunda es baja
+                        if ($matchedClients[0]['score'] >= 85 && (!isset($matchedClients[1]) || $matchedClients[1]['score'] < 65)) {
+                            $isNewClient = false;
+                            $clientId = $matchedClients[0]['item']->id;
+                        } else {
+                            $isNewClient = true;
+                            // Enviar solo el id, nombre y teléfono de los mejores 5
+                            $suggestedClients = array_map(function ($match) {
+                                return [
+                                    'id' => $match['item']->id,
+                                    'name' => $match['item']->name,
+                                    'phone' => $match['item']->phone,
+                                ];
+                            }, array_slice($matchedClients, 0, 5));
+                        }
                     }
                 }
 
@@ -89,6 +109,7 @@ class AiAssistantController extends Controller
                 $responseData['client_name'] = $clientName;
                 $responseData['client_id'] = $clientId;
                 $responseData['is_new_client'] = $isNewClient;
+                $responseData['suggested_clients'] = $suggestedClients;
                 $responseData['event_date'] = $args['event_date'] ?? null;
                 $responseData['total'] = $parsedData['total'];
             }
@@ -107,12 +128,15 @@ class AiAssistantController extends Controller
 
     private function transcribeAudio($file)
     {
+        $clients = \App\Models\Client::pluck('name')->implode(', ');
+
         $response = Http::withoutVerifying()
             ->withToken(env('OPENAI_API_KEY'))
             ->attach('file', file_get_contents($file->getRealPath()), $file->getClientOriginalName())
             ->post('https://api.openai.com/v1/audio/transcriptions', [
                 'model' => 'whisper-1',
                 'language' => 'es',
+                'prompt' => 'Nombres de clientes frecuentes que pueden aparecer en este audio: ' . $clients,
             ]);
 
         return $response->json();

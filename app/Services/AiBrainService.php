@@ -40,7 +40,7 @@ class AiBrainService
             $context .= "REGLAS PARA ui_widget (type y data):\n";
             $context .= "- Si usaste create_client o search_client: devuelve type 'client_card' con data: {'name': '...', 'phone': '...'}\n";
             $context .= "- Si usaste create_order o update_order: devuelve type 'order_card' con data: {'title': 'Pedido para [Nombre Cliente]', 'subtitle': 'Resumen muy detallado de los productos, incluyendo cantidad, peso, rellenos y extras', 'total': '$ [Monto total]', 'order_id': [ID Numérico del pedido], 'event_date': '[Fecha del pedido YYYY-MM-DD]'}\n";
-            $context .= "- Si usaste get_orders_by_date o search_orders_by_client: devuelve type 'order_list' con data: {'orders': [...]}\n";
+            $context .= "- Si usaste get_orders_by_date, search_orders o search_orders_by_client: devuelve type 'order_list' con data: {'orders': [...]}\n";
             $context .= "- Si usaste get_production_summary: devuelve type 'production_list' con data: {'summary': [...]}\n";
             $context .= "- Si usaste get_revenue_by_period: devuelve type 'revenue_card' con data: {'period': 'Facturación', 'revenue': 123456}\n";
             $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}\n";
@@ -91,6 +91,22 @@ class AiBrainService
             [
                 'type' => 'function',
                 'function' => [
+                    'name' => 'search_orders',
+                    'description' => 'Busca pedidos filtrando por rango de fechas y estado de pago (pagado/no pagado). Útil para preguntas como "¿Hay pedidos pagados este año?", "¿Cuántos faltan pagar?", etc.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'start_date' => ['type' => 'string', 'description' => 'Fecha inicio YYYY-MM-DD'],
+                            'end_date' => ['type' => 'string', 'description' => 'Fecha fin YYYY-MM-DD'],
+                            'is_paid' => ['type' => 'boolean', 'description' => 'Opcional. True para buscar solo pagados, false para solo no pagados. Omítelo si quieres ambos.'],
+                        ],
+                        'required' => ['start_date', 'end_date'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
                     'name' => 'create_client',
                     'description' => 'Registra un nuevo cliente en la base de datos. NUNCA lo uses solo para buscar o consultar si existe.',
                     'parameters' => [
@@ -118,7 +134,7 @@ class AiBrainService
                                 'items' => [
                                     'type' => 'object',
                                     'properties' => [
-                                        'product_name' => ['type' => 'string', 'description' => 'Nombre representativo del producto. Ej: "Torta Chantilly" o "Lemon Pie". NUNCA usar solo "Torta".'],
+                                        'product_name' => ['type' => 'string', 'description' => 'Nombre EXACTO del producto tal cual aparece en el CATÁLOGO DE PRODUCTOS VÁLIDOS. NUNCA lo acortes. Ej: Si el cliente dice "torta", debes inferir cuál del catálogo es la más adecuada ("Torta Decorada con Crema Chantilly", "Torta con Ganache", etc). NUNCA usar solo "Torta".'],
                                         'quantity' => ['type' => 'number'],
                                         'fillings' => [
                                             'type' => 'array',
@@ -159,7 +175,7 @@ class AiBrainService
                                 'items' => [
                                     'type' => 'object',
                                     'properties' => [
-                                        'product_name' => ['type' => 'string'],
+                                        'product_name' => ['type' => 'string', 'description' => 'Nombre EXACTO del producto tal cual aparece en el CATÁLOGO. NUNCA lo acortes. NUNCA usar solo "Torta".'],
                                         'quantity' => ['type' => 'number'],
                                         'fillings' => [
                                             'type' => 'array',
@@ -252,6 +268,15 @@ class AiBrainService
         $clients = Client::select('id', 'name')->get();
 
         return $this->findBestMatch($clientName, $clients, 'name', $threshold);
+    }
+
+    /**
+     * Busca posibles clientes similares y devuelve un array con las mejores coincidencias y sus scores
+     */
+    public function matchClients(string $clientName, int $threshold = 50): array
+    {
+        $clients = Client::select('id', 'name', 'phone')->get();
+        return $this->findTopMatches($clientName, $clients, 'name', $threshold);
     }
 
     /**

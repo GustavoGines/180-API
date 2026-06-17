@@ -39,4 +39,41 @@ trait SearchableMatch
 
         return $highestPercentage >= $minPercentage ? $bestMatch : null;
     }
+
+    /**
+     * Devuelve las mejores coincidencias que superen el porcentaje mínimo, ordenadas por puntaje.
+     */
+    protected function findTopMatches(string $search, $collection, string $field, int $minPercentage)
+    {
+        $matches = [];
+        $searchNormalized = Str::ascii(Str::lower($search));
+
+        foreach ($collection as $item) {
+            $target = Str::ascii(Str::lower($item->{$field}));
+
+            if (strlen($searchNormalized) == 0 || strlen($target) == 0) {
+                continue;
+            }
+
+            similar_text($searchNormalized, $target, $percent);
+
+            if (str_contains($target, $searchNormalized) || str_contains($searchNormalized, $target)) {
+                $percent += 40;
+            }
+
+            if ($percent >= $minPercentage) {
+                $matches[] = [
+                    'item' => $item,
+                    'score' => $percent
+                ];
+            }
+        }
+
+        // Ordenar de mayor a menor porcentaje
+        usort($matches, function ($a, $b) {
+            return $b['score'] <=> $a['score'];
+        });
+
+        return $matches;
+    }
 }

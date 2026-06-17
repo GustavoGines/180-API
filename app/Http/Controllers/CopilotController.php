@@ -208,6 +208,27 @@ class CopilotController extends Controller
                             ->whereDate('event_date', $args['date'])
                             ->get();
                         $toolResponse = ['success' => true, 'orders' => $orders];
+                    } elseif ($toolName === 'search_orders') {
+                        $query = Order::with('client', 'items')
+                            ->whereBetween('event_date', [$args['start_date'], $args['end_date']]);
+
+                        if (isset($args['is_paid'])) {
+                            $query->where('is_paid', $args['is_paid']);
+                        }
+
+                        $totalCount = $query->count();
+                        $totalSum = $query->sum('total');
+
+                        // Limitamos a los primeros 20 para no explotar el contexto de OpenAI
+                        $orders = $query->orderBy('event_date', 'desc')->limit(20)->get();
+
+                        $toolResponse = [
+                            'success' => true,
+                            'total_count' => $totalCount,
+                            'total_revenue' => (float) $totalSum,
+                            'orders' => $orders,
+                            'message' => 'Se devuelven solo los 20 más recientes para no saturar. Menciona el total_count y total_revenue al usuario.',
+                        ];
                     } elseif ($toolName === 'get_production_summary') {
                         $summary = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
                             ->whereBetween('orders.event_date', [$args['start_date'], $args['end_date']])
