@@ -52,7 +52,7 @@ class CatalogController extends Controller
         return response()->json([
             'meta' => [
                 'timestamp' => now()->toIso8601String(),
-                'version' => '1.0',
+                'version' => '2.2.0',
             ],
             'data' => $data,
         ]);
