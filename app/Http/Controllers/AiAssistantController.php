@@ -28,12 +28,14 @@ class AiAssistantController extends Controller
             $transcription = $this->transcribeAudio($audioFile);
 
             if (! $transcription || isset($transcription['error'])) {
-                return response()->json(['error' => 'No se pudo procesar el audio'], 500);
+                return response()->json(['error' => 'Audio inválido o demasiado corto. Intenta de nuevo.'], 400);
             }
 
             $text = $transcription['text'] ?? '';
             if (empty($text)) {
-                throw new \Exception('La transcripción de audio devolvió un texto vacío.');
+                return response()->json([
+                    'error' => 'No se detectó voz en el audio. Intenta hablar un poco más.'
+                ], 400);
             }
 
             // 2. LLamar a OpenAI usando el AiBrainService para extraer el intent
