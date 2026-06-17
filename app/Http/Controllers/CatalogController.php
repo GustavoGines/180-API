@@ -45,14 +45,14 @@ class CatalogController extends Controller
             return [
                 'products' => ProductResource::collection($products),
                 'fillings' => FillingResource::collection($fillings),
-                'extras'   => ExtraResource::collection($extras),
+                'extras' => ExtraResource::collection($extras),
             ];
         });
 
         return response()->json([
             'meta' => [
                 'timestamp' => now()->toIso8601String(),
-                'version'   => '1.0',
+                'version' => '1.0',
             ],
             'data' => $data,
         ]);

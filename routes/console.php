@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\Order;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-use App\Models\Order;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -13,7 +13,7 @@ Artisan::command('orders:prune-trashed', function () {
     $deleted = Order::onlyTrashed()
         ->where('deleted_at', '<=', now()->subDays(7))
         ->forceDelete();
-        
+
     $this->info("Mantenimiento: {$deleted} pedidos borrados definitivamente.");
 })->purpose('Elimina permanentemente los pedidos (Soft Deletes) con más de 7 días');
 

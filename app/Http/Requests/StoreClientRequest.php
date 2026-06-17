@@ -22,25 +22,25 @@ class StoreClientRequest extends FormRequest
      */
     public function rules(): array
     {
-        // 2. Obtenemos el cliente de la ruta (será null en 'store', 
+        // 2. Obtenemos el cliente de la ruta (será null en 'store',
         //    y será el objeto Client en 'update')
         $client = $this->route('client');
 
         return [
             'name' => ['required', 'string', 'max:120'],
-            
+
             'phone' => [
-                'nullable', 
-                'string', 
+                'nullable',
+                'string',
                 'max:40',
                 // 3. Regla unique:
-                // "Debe ser único en la tabla 'clients', 
+                // "Debe ser único en la tabla 'clients',
                 //  PERO ignora el ID del cliente que estamos actualizando"
                 Rule::unique('clients')->ignore($client?->id),
             ],
-            
+
             'email' => [
-                'nullable', 
+                'nullable',
                 'email',
                 Rule::unique('clients')->ignore($client?->id),
             ],

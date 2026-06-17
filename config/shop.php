@@ -20,7 +20,7 @@ return [
     // Fechas especiales donde el límite de pedidos se amplía o reduce
     // Formato: 'YYYY-MM-DD' => capacidad
     'special_capacities' => [
-        
+
         // --- SAN VALENTÍN ---
         '2026-02-13' => 30, // Sábado previo
         '2026-02-14' => 30, // Día de los enamorados

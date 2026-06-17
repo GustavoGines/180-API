@@ -5,20 +5,19 @@ namespace App\Http\Controllers;
 use App\Events\OrderCreated;
 use App\Events\OrderDeleted;
 use App\Events\OrderUpdated;
-use App\Http\Requests\StoreOrderRequest;
-use App\Http\Requests\UpdateOrderRequest;
 use App\Http\Requests\StoreBotOrderRequest;
+use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateBotOrderRequest;
-use App\Services\BotOrderService;
+use App\Http\Requests\UpdateOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
+use App\Services\BotOrderService;
 use App\Services\OrderImageService;
 use App\Services\OrderPriceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
@@ -39,9 +38,9 @@ class OrderController extends Controller
             ->with(['client', 'items'])
             ->when($search, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
-                    $query->whereHas('client', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                          ->orWhereRaw('id::text like ?', ["%{$search}%"])
-                          ->orWhere('notes', 'like', "%{$search}%");
+                    $query->whereHas('client', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
+                        ->orWhereRaw('id::text like ?', ["%{$search}%"])
+                        ->orWhere('notes', 'like', "%{$search}%");
                 });
             })
             ->when($fromDate, fn ($q) => $q->whereDate('event_date', '>=', $fromDate))
@@ -288,7 +287,7 @@ class OrderController extends Controller
 
         // Regla 1: Días de Descanso (configurable)
         $closedDays = explode(',', config('shop.closed_days', '2'));
-        if (in_array((string)$requestedDate->dayOfWeekIso, $closedDays)) {
+        if (in_array((string) $requestedDate->dayOfWeekIso, $closedDays)) {
             return response()->json([
                 'available' => false,
                 'reason' => 'closed',
@@ -342,7 +341,7 @@ class OrderController extends Controller
     public function storeFromBot(StoreBotOrderRequest $request, BotOrderService $botService)
     {
         $validated = $request->validated();
-        
+
         $order = DB::transaction(function () use ($validated, $botService) {
             // 1. Traducir ítems del bot al formato estándar
             $translatedItems = $botService->translateBotItems($validated['bot_items']);
@@ -357,7 +356,7 @@ class OrderController extends Controller
             $orderData['total'] = $calculatedGrandTotal;
             $orderData['deposit'] = 0.0; // Bot orders suelen entrar con seña 0 inicialmente
             $orderData['is_paid'] = false;
-            
+
             // 4. Crear orden
             $order = Order::create($orderData);
 
@@ -390,12 +389,12 @@ class OrderController extends Controller
 
                 // Calcular nuevos totales base de los ítems
                 $itemsTotal = $this->priceCalculator->calculateItemsTotal($translatedItems);
-                $deliveryCost = (float)($order->delivery_cost ?? 0); // Mantener el costo de envío actual de la base de datos
+                $deliveryCost = (float) ($order->delivery_cost ?? 0); // Mantener el costo de envío actual de la base de datos
                 $calculatedGrandTotal = $this->priceCalculator->calculateGrandTotal($itemsTotal, $deliveryCost);
 
                 // Actualizar total y ajustar depósito si supera el nuevo total
                 $orderData['total'] = $calculatedGrandTotal;
-                $orderData['deposit'] = $this->priceCalculator->calculateValidDeposit((float)$order->deposit, $calculatedGrandTotal);
+                $orderData['deposit'] = $this->priceCalculator->calculateValidDeposit((float) $order->deposit, $calculatedGrandTotal);
 
                 // Reemplazar items
                 $order->items()->delete();
@@ -405,7 +404,7 @@ class OrderController extends Controller
             }
 
             // 3. Actualizar orden
-            if (!empty($orderData)) {
+            if (! empty($orderData)) {
                 $order->update($orderData);
             }
 

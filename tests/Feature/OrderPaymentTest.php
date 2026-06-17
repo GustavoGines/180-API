@@ -38,19 +38,19 @@ class OrderPaymentTest extends TestCase
         $client = Client::factory()->create();
 
         $order = Order::create(array_merge([
-            'client_id'  => $client->id,
+            'client_id' => $client->id,
             'event_date' => now()->addDays(7)->format('Y-m-d'),
             'start_time' => '14:00',
-            'end_time'   => '16:00',
-            'status'     => 'confirmed',
-            'total'      => 10000,
-            'deposit'    => 0,
-            'is_paid'    => false,
+            'end_time' => '16:00',
+            'status' => 'confirmed',
+            'total' => 10000,
+            'deposit' => 0,
+            'is_paid' => false,
         ], $overrides));
 
         $order->items()->create([
-            'name'       => 'Torta Test',
-            'qty'        => 1,
+            'name' => 'Torta Test',
+            'qty' => 1,
             'base_price' => 10000,
         ]);
 
@@ -83,7 +83,7 @@ class OrderPaymentTest extends TestCase
         $this->patchJson("/api/orders/{$order->id}/mark-paid");
 
         $this->assertDatabaseHas('orders', [
-            'id'      => $order->id,
+            'id' => $order->id,
             'is_paid' => true,
             'deposit' => 15000,
         ]);
@@ -124,7 +124,7 @@ class OrderPaymentTest extends TestCase
         $this->patchJson("/api/orders/{$order->id}/mark-unpaid");
 
         $this->assertDatabaseHas('orders', [
-            'id'      => $order->id,
+            'id' => $order->id,
             'is_paid' => false,
             'deposit' => 0,
         ]);
@@ -139,7 +139,7 @@ class OrderPaymentTest extends TestCase
         $this->patchJson("/api/orders/{$order->id}/mark-unpaid");
 
         $this->assertDatabaseHas('orders', [
-            'id'      => $order->id,
+            'id' => $order->id,
             'is_paid' => false,
             'deposit' => 3000, // Depósito parcial no se toca
         ]);
@@ -164,7 +164,7 @@ class OrderPaymentTest extends TestCase
         $this->assertEquals(12000, $response->json('data.deposit'));
 
         $this->assertDatabaseHas('orders', [
-            'id'      => $order->id,
+            'id' => $order->id,
             'is_paid' => true,
             'deposit' => 12000,
         ]);

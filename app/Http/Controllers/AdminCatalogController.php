@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ExtraResource;
+use App\Http\Resources\FillingResource;
+use App\Http\Resources\ProductResource;
 use App\Models\Extra;
 use App\Models\Filling;
 use App\Models\Product;
@@ -9,9 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use App\Http\Resources\ProductResource;
-use App\Http\Resources\FillingResource;
-use App\Http\Resources\ExtraResource;
 
 class AdminCatalogController extends Controller
 {
@@ -22,17 +22,17 @@ class AdminCatalogController extends Controller
         Gate::authorize('admin');
 
         $validated = $request->validate([
-            'name'                          => 'required|string|max:255',
-            'category'                      => 'required|string',
-            'description'                   => 'nullable|string',
-            'base_price'                    => 'required|numeric',
-            'unit_type'                     => 'required|string',
-            'allow_half_dozen'              => 'boolean',
-            'half_dozen_price'              => 'nullable|numeric',
-            'multiplier_adjustment_per_kg'  => 'nullable|numeric',
-            'variants'                      => 'array',
-            'variants.*.variant_name'       => 'required|string',
-            'variants.*.price'              => 'required|numeric',
+            'name' => 'required|string|max:255',
+            'category' => 'required|string',
+            'description' => 'nullable|string',
+            'base_price' => 'required|numeric',
+            'unit_type' => 'required|string',
+            'allow_half_dozen' => 'boolean',
+            'half_dozen_price' => 'nullable|numeric',
+            'multiplier_adjustment_per_kg' => 'nullable|numeric',
+            'variants' => 'array',
+            'variants.*.variant_name' => 'required|string',
+            'variants.*.price' => 'required|numeric',
         ]);
 
         $result = DB::transaction(function () use ($validated) {
@@ -58,18 +58,18 @@ class AdminCatalogController extends Controller
         $product = Product::findOrFail($id);
 
         $validated = $request->validate([
-            'name'                          => 'required|string|max:255',
-            'category'                      => 'required|string',
-            'description'                   => 'nullable|string',
-            'base_price'                    => 'required|numeric',
-            'unit_type'                     => 'required|string',
-            'allow_half_dozen'              => 'boolean',
-            'half_dozen_price'              => 'nullable|numeric',
-            'multiplier_adjustment_per_kg'  => 'nullable|numeric',
-            'variants'                      => 'array',
-            'variants.*.id'                 => 'nullable|integer',
-            'variants.*.variant_name'       => 'required|string',
-            'variants.*.price'              => 'required|numeric',
+            'name' => 'required|string|max:255',
+            'category' => 'required|string',
+            'description' => 'nullable|string',
+            'base_price' => 'required|numeric',
+            'unit_type' => 'required|string',
+            'allow_half_dozen' => 'boolean',
+            'half_dozen_price' => 'nullable|numeric',
+            'multiplier_adjustment_per_kg' => 'nullable|numeric',
+            'variants' => 'array',
+            'variants.*.id' => 'nullable|integer',
+            'variants.*.variant_name' => 'required|string',
+            'variants.*.price' => 'required|numeric',
         ]);
 
         DB::transaction(function () use ($product, $validated) {
@@ -92,12 +92,12 @@ class AdminCatalogController extends Controller
                     if (isset($vData['id'])) {
                         $product->variants()->where('id', $vData['id'])->update([
                             'variant_name' => $vData['variant_name'],
-                            'price'        => $vData['price'],
+                            'price' => $vData['price'],
                         ]);
                     } else {
                         $product->variants()->create([
                             'variant_name' => $vData['variant_name'],
-                            'price'        => $vData['price'],
+                            'price' => $vData['price'],
                         ]);
                     }
                 }
@@ -127,9 +127,9 @@ class AdminCatalogController extends Controller
         Gate::authorize('admin');
 
         $validated = $request->validate([
-            'name'          => 'required|string',
-            'price_per_kg'  => 'required|numeric',
-            'is_free'       => 'boolean',
+            'name' => 'required|string',
+            'price_per_kg' => 'required|numeric',
+            'is_free' => 'boolean',
         ]);
 
         $filling = Filling::create($validated);
@@ -146,9 +146,9 @@ class AdminCatalogController extends Controller
         $filling = Filling::findOrFail($id);
 
         $validated = $request->validate([
-            'name'          => 'required|string',
-            'price_per_kg'  => 'required|numeric',
-            'is_free'       => 'boolean',
+            'name' => 'required|string',
+            'price_per_kg' => 'required|numeric',
+            'is_free' => 'boolean',
         ]);
 
         $filling->update($validated);
@@ -176,8 +176,8 @@ class AdminCatalogController extends Controller
         Gate::authorize('admin');
 
         $validated = $request->validate([
-            'name'       => 'required|string',
-            'price'      => 'required|numeric',
+            'name' => 'required|string',
+            'price' => 'required|numeric',
             'price_type' => 'required|in:per_unit,per_kg',
         ]);
 
@@ -195,8 +195,8 @@ class AdminCatalogController extends Controller
         $extra = Extra::findOrFail($id);
 
         $validated = $request->validate([
-            'name'       => 'required|string',
-            'price'      => 'required|numeric',
+            'name' => 'required|string',
+            'price' => 'required|numeric',
             'price_type' => 'required|in:per_unit,per_kg',
         ]);
 

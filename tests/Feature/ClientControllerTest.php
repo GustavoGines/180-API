@@ -96,7 +96,7 @@ class ClientControllerTest extends TestCase
         }
 
         $payload = [
-            'name'  => 'Nuevo Cliente Test',
+            'name' => 'Nuevo Cliente Test',
             'phone' => '+5491112345678',
             'email' => 'nuevo@test.com',
         ];
@@ -151,16 +151,16 @@ class ClientControllerTest extends TestCase
     public function test_show_incluye_ig_handle_y_whatsapp_url()
     {
         $client = Client::factory()->create([
-            'name'      => 'Test IG',
+            'name' => 'Test IG',
             'ig_handle' => 'test.ig',
-            'phone'     => '+5493704123456',
+            'phone' => '+5493704123456',
         ]);
 
         $response = $this->getJson("/api/clients/{$client->id}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.ig_handle', 'test.ig')
-            ->assertJsonPath('data.whatsapp_url', "https://wa.me/5493704123456")
+            ->assertJsonPath('data.whatsapp_url', 'https://wa.me/5493704123456')
             ->assertJsonMissing(['address']); // campo eliminado en B2
     }
 }

@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -18,7 +18,7 @@ return new class extends Migration
 
         // Backfill: Marcar como pagado si el depósito es mayor o igual al total (y total > 0)
         // PostgreSQL: Usar 'true' para booleanos
-        DB::statement("UPDATE orders SET is_paid = true WHERE deposit >= total AND total > 0");
+        DB::statement('UPDATE orders SET is_paid = true WHERE deposit >= total AND total > 0');
     }
 
     /**

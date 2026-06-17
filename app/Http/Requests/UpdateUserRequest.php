@@ -35,12 +35,12 @@ class UpdateUserRequest extends FormRequest
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->ignore($userId) // Ignora el email del propio usuario
+                Rule::unique('users')->ignore($userId), // Ignora el email del propio usuario
             ],
             'role' => ['sometimes', 'required', 'string', Rule::in(['admin', 'staff'])],
-            
+
             // La contraseña es opcional en la actualización
-            'password' => ['nullable', 'confirmed', Password::min(8)], 
+            'password' => ['nullable', 'confirmed', Password::min(8)],
         ];
     }
 }

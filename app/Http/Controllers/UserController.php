@@ -2,31 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Http\Resources\UserResource;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use Illuminate\Http\Request;
+use App\Http\Resources\UserResource;
+use App\Models\User;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
     public function index()
     {
         $users = User::whereIn('role', ['admin', 'staff'])
-                         ->orderBy('name')
-                         ->get();
+            ->orderBy('name')
+            ->get();
+
         return UserResource::collection($users);
     }
 
     public function trashed()
     {
         $trashedUsers = User::onlyTrashed()
-                            ->whereIn('role', ['admin', 'staff'])
-                            ->orderBy('deleted_at', 'desc')
-                            ->get();
+            ->whereIn('role', ['admin', 'staff'])
+            ->orderBy('deleted_at', 'desc')
+            ->get();
+
         return UserResource::collection($trashedUsers);
     }
 
@@ -38,12 +39,12 @@ class UserController extends Controller
         $trashedUser = User::onlyTrashed()->where('email', $email)->first();
 
         if ($trashedUser) {
-             return response()->json([
+            return response()->json([
                 'message' => 'El usuario existe pero está inactivo.',
-                'user' => new UserResource($trashedUser)
+                'user' => new UserResource($trashedUser),
             ], Response::HTTP_CONFLICT);
         }
-        
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -53,7 +54,6 @@ class UserController extends Controller
 
         return new UserResource($user);
     }
-
 
     public function show(User $user)
     {
@@ -65,7 +65,7 @@ class UserController extends Controller
         $validated = $request->validated();
         $userData = Arr::except($validated, 'password');
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $userData['password'] = Hash::make($validated['password']);
         }
 
@@ -77,6 +77,7 @@ class UserController extends Controller
     public function destroy(User $user)
     {
         $user->delete();
+
         return response()->noContent();
     }
 
@@ -84,7 +85,7 @@ class UserController extends Controller
     {
         $user = User::withTrashed()->findOrFail($id);
 
-        if (!$user->trashed()) {
+        if (! $user->trashed()) {
             return response()->json(['message' => 'El usuario no necesita ser restaurado.'], Response::HTTP_BAD_REQUEST);
         }
 
@@ -97,6 +98,7 @@ class UserController extends Controller
     {
         $user = User::withTrashed()->findOrFail($id);
         $user->forceDelete();
+
         return response()->noContent();
     }
 }

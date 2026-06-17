@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('clients', function (Blueprint $table) {
-            $table->string('address', 255)->nullable()->after('ig_handle');;
+            $table->string('address', 255)->nullable()->after('ig_handle');
         });
     }
 };

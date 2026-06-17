@@ -14,18 +14,15 @@ class BotOrderService
      * by OrderController->createOrderItems(), populating customization_json with IDs.
      *
      * Pre-carga todo el catálogo en memoria antes del loop para evitar N+1 queries.
-     *
-     * @param array $botItems
-     * @return array
      */
     public function translateBotItems(array $botItems): array
     {
         // --- Pre-carga del catálogo completo en memoria (elimina N+1) con Caché ---
         // En lugar de hacer queries cada vez, cacheamos el catálogo 1 hora.
-        
+
         $allProducts = \Illuminate\Support\Facades\Cache::remember('catalog.products', 3600, function () {
             return Product::all();
-        })->keyBy(fn ($p) => mb_strtolower(trim($p->name), 'UTF-8') . '|' . $p->category);
+        })->keyBy(fn ($p) => mb_strtolower(trim($p->name), 'UTF-8').'|'.$p->category);
 
         $allFillings = \Illuminate\Support\Facades\Cache::remember('catalog.fillings', 3600, function () {
             return Filling::all();
@@ -40,18 +37,18 @@ class BotOrderService
 
         foreach ($botItems as $botItem) {
             $translatedItem = [
-                'name'                => $botItem['product_name'],
-                'qty'                 => $botItem['qty'],
-                'base_price'          => $botItem['base_price'],
-                'adjustments'         => $botItem['adjustments'] ?? 0,
+                'name' => $botItem['product_name'],
+                'qty' => $botItem['qty'],
+                'base_price' => $botItem['base_price'],
+                'adjustments' => $botItem['adjustments'] ?? 0,
                 'customization_notes' => $botItem['customization_notes'] ?? null,
-                'customization_json'  => [
+                'customization_json' => [
                     'category' => $botItem['category_name'],
                 ],
             ];
 
             // 1. Buscar el Product por nombre+categoría en memoria
-            $productKey = mb_strtolower(trim($botItem['product_name']), 'UTF-8') . '|' . $botItem['category_name'];
+            $productKey = mb_strtolower(trim($botItem['product_name']), 'UTF-8').'|'.$botItem['category_name'];
             $product = $allProducts->get($productKey);
 
             if ($product) {
@@ -74,10 +71,10 @@ class BotOrderService
 
                     if ($filling) {
                         $selectedFillings[] = [
-                            'id'           => $filling->id,
-                            'name'         => $filling->name,
+                            'id' => $filling->id,
+                            'name' => $filling->name,
                             'price_per_kg' => $filling->price_per_kg,
-                            'is_free'      => (bool) $filling->is_free,
+                            'is_free' => (bool) $filling->is_free,
                         ];
                     } else {
                         Log::warning("BotOrderService: Filling not found: {$fillingName} for item {$botItem['product_name']}");
@@ -95,8 +92,8 @@ class BotOrderService
 
                     if ($extra) {
                         $selectedExtras[] = [
-                            'id'    => $extra->id,
-                            'name'  => $extra->name,
+                            'id' => $extra->id,
+                            'name' => $extra->name,
                             'price' => $extra->price,
                         ];
                     } else {

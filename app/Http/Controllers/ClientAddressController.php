@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
-use App\Models\ClientAddress;
 use App\Http\Requests\StoreClientAddressRequest;
 use App\Http\Resources\ClientAddressResource;
-use Illuminate\Http\Request;
+use App\Models\Client;
+use App\Models\ClientAddress;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
@@ -22,7 +21,7 @@ class ClientAddressController extends Controller
         try {
             $data = $request->validated();
             Log::info('Validated data:', $data);
-            
+
             $address = $client->addresses()->create($data);
             Log::info('Address created successfully:', ['id' => $address->id]);
 
@@ -30,9 +29,10 @@ class ClientAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('Error creating address:', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Error backend creando address: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Error backend creando address: '.$e->getMessage()], 500);
         }
     }
 
@@ -43,6 +43,7 @@ class ClientAddressController extends Controller
         }
 
         $address->update($request->validated());
+
         return new ClientAddressResource($address->fresh());
     }
 
@@ -58,10 +59,11 @@ class ClientAddressController extends Controller
 
         // Validación: No permitir borrar si está en uso por un pedido
         if ($address->orders()->exists()) {
-             return response()->json(['message' => 'Conflicto: Esta dirección está siendo usada en uno o más pedidos y no puede ser borrada.'], Response::HTTP_CONFLICT);
+            return response()->json(['message' => 'Conflicto: Esta dirección está siendo usada en uno o más pedidos y no puede ser borrada.'], Response::HTTP_CONFLICT);
         }
 
         $address->delete();
+
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
 }

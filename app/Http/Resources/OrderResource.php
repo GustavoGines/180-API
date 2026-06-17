@@ -31,9 +31,9 @@ class OrderResource extends JsonResource
             'updated_at' => $this->updated_at,
 
             // Relaciones
-            'client'         => new ClientResource($this->whenLoaded('client')),
+            'client' => new ClientResource($this->whenLoaded('client')),
             'client_address' => $this->whenLoaded('clientAddress'),
-            'items'          => OrderItemResource::collection($this->whenLoaded('items')),
+            'items' => OrderItemResource::collection($this->whenLoaded('items')),
         ];
     }
 }

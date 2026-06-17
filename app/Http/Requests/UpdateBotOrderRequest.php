@@ -24,16 +24,16 @@ class UpdateBotOrderRequest extends FormRequest
             'client_id' => [
                 'sometimes',
                 function ($attribute, $value, $fail) {
-                    if (!\App\Models\Client::withTrashed()->where('id', $value)->exists()) {
+                    if (! \App\Models\Client::withTrashed()->where('id', $value)->exists()) {
                         $fail('El cliente seleccionado es inválido o no existe.');
                     }
-                }
+                },
             ],
             'event_date' => 'sometimes|date_format:Y-m-d',
             'start_time' => 'sometimes|date_format:H:i',
             'end_time' => 'sometimes|date_format:H:i|after:start_time',
             'status' => ['sometimes', 'string', Rule::in(['draft', 'pending', 'confirmed', 'ready', 'delivered', 'canceled'])],
-            
+
             // Si envían bot_items en el PUT, se validará completo igual que al crear
             'bot_items' => 'sometimes|array|min:1',
             'bot_items.*.category_name' => 'required_with:bot_items|string',
@@ -42,13 +42,13 @@ class UpdateBotOrderRequest extends FormRequest
             'bot_items.*.base_price' => 'required_with:bot_items|numeric|min:0',
             'bot_items.*.adjustments' => 'nullable|numeric',
             'bot_items.*.weight_kg' => 'nullable|numeric|min:0.5',
-            
+
             'bot_items.*.fillings' => 'nullable|array',
             'bot_items.*.fillings.*' => 'string|max:255',
-            
+
             'bot_items.*.extras' => 'nullable|array',
             'bot_items.*.extras.*' => 'string|max:255',
-            
+
             'bot_items.*.customization_notes' => 'nullable|string',
         ];
     }

@@ -15,10 +15,10 @@ return new class extends Migration
             // Tu código. Se enlaza a la nueva tabla 'client_addresses'
             // y si se borra la dirección, el pedido queda 'null' (pero no se borra el pedido)
             $table->foreignId('client_address_id')
-                  ->nullable()
-                  ->after('client_id') // Ubicación opcional
-                  ->constrained('client_addresses') // Tabla correcta
-                  ->nullOnDelete();
+                ->nullable()
+                ->after('client_id') // Ubicación opcional
+                ->constrained('client_addresses') // Tabla correcta
+                ->nullOnDelete();
         });
     }
 

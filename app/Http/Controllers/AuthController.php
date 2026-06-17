@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -16,8 +15,8 @@ class AuthController extends Controller
     public function createToken(Request $request)
     {
         $request->validate([
-            'email'       => 'required|email',
-            'password'    => 'required',
+            'email' => 'required|email',
+            'password' => 'required',
             'device_name' => 'required',
         ]);
 

@@ -16,12 +16,12 @@ return new class extends Migration
         }
 
         // Limpiar huérfanos antes de agregar la FK con onDelete
-        DB::statement("
+        DB::statement('
             UPDATE orders
             SET client_address_id = NULL
             WHERE client_address_id IS NOT NULL
               AND client_address_id NOT IN (SELECT id FROM client_addresses)
-        ");
+        ');
 
         Schema::table('orders', function (Blueprint $table) {
             // Eliminar el FK existente (sin onDelete definido)

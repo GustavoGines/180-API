@@ -24,6 +24,7 @@ class StoreClientAddressRequest extends FormRequest
     public function rules(): array
     {
         \Illuminate\Support\Facades\Log::info('StoreClientAddressRequest rules called', $this->all());
+
         // 'sometimes' significa que solo valida si está presente (útil para PUT/PATCH)
         // 'required_without_all' es clave: debe proveer al menos una dirección, URL o coordenadas.
         return [
@@ -32,19 +33,19 @@ class StoreClientAddressRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:255',
-                'required_without_all:latitude,google_maps_url'
+                'required_without_all:latitude,google_maps_url',
             ],
             'latitude' => [
                 'nullable',
                 'numeric',
                 'between:-90,90',
-                'required_with:longitude' // Si envías lat, debes enviar lng
+                'required_with:longitude', // Si envías lat, debes enviar lng
             ],
             'longitude' => [
                 'nullable',
                 'numeric',
                 'between:-180,180',
-                'required_with:latitude' // Si envías lng, debes enviar lat
+                'required_with:latitude', // Si envías lng, debes enviar lat
             ],
             'google_maps_url' => ['nullable', 'url', 'max:2048'],
             'notes' => ['nullable', 'string'],

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
@@ -27,13 +27,13 @@ class Order extends Model
     {
         return $this->belongsTo(Client::class)->withTrashed();
     }
-    
+
     // Un pedido pertenece a una dirección
     public function clientAddress()
     {
         return $this->belongsTo(ClientAddress::class, 'client_address_id');
     }
-    
+
     public function items()
     {
         return $this->hasMany(OrderItem::class);

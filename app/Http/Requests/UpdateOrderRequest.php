@@ -29,10 +29,10 @@ class UpdateOrderRequest extends FormRequest
             'client_id' => [
                 'required',
                 function ($attribute, $value, $fail) {
-                    if (!\App\Models\Client::withTrashed()->where('id', $value)->exists()) {
+                    if (! \App\Models\Client::withTrashed()->where('id', $value)->exists()) {
                         $fail('El cliente seleccionado es inválido o no existe.');
                     }
-                }
+                },
             ],
             'client_address_id' => [
                 'nullable',

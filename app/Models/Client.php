@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-
 
 class Client extends Model
 {
-
     use HasFactory, SoftDeletes;
 
     protected $fillable = ['name', 'phone', 'email', 'ig_handle', 'notes'];
@@ -24,13 +22,11 @@ class Client extends Model
         return $this->hasMany(ClientAddress::class);
     }
 
-
-
     /**
      * Define qué campos extra debe añadir el modelo al convertir a JSON.
      */
     protected $appends = [
-        'whatsapp_url'
+        'whatsapp_url',
     ];
 
     /**
@@ -44,15 +40,15 @@ class Client extends Model
 
         // 1. Limpia el número
         $sanitizedPhone = preg_replace('/[^0-9]/', '', $this->phone);
-        
+
         // 2. Añade el prefijo 549 solo si no lo tiene ya
         if (str_starts_with($sanitizedPhone, '549')) {
             $whatsappNumber = $sanitizedPhone;
         } else {
-            $whatsappNumber = '549' . ltrim($sanitizedPhone, '0'); // También quitamos ceros a la izquierda por si guardaron 0370...
+            $whatsappNumber = '549'.ltrim($sanitizedPhone, '0'); // También quitamos ceros a la izquierda por si guardaron 0370...
         }
 
         // 3. Retorna la URL completa
-        return 'https://wa.me/' . $whatsappNumber;
+        return 'https://wa.me/'.$whatsappNumber;
     }
 }

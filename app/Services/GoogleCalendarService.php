@@ -38,7 +38,7 @@ class GoogleCalendarService
         // Credenciales: BASE64 → JSON inline → PATH
         $jsonInline = config('services.google.credentials_json');
         $jsonBase64 = config('services.google.credentials_base64');
-        $jsonPath   = config('services.google.credentials_path');
+        $jsonPath = config('services.google.credentials_path');
 
         if (! empty($jsonBase64)) {
             $decoded = json_decode(base64_decode($jsonBase64, true) ?: '', true);

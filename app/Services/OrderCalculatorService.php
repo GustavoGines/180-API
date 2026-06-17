@@ -17,12 +17,14 @@ class OrderCalculatorService
 
                 if ($qty <= 0 || $basePrice < 0) {
                     $v->errors()->add("items.$key", __('messages.validation.item_invalid_qty_price'));
+
                     continue;
                 }
 
                 $finalUnitPrice = $basePrice + $adjustments;
                 if ($finalUnitPrice < 0) {
                     $v->errors()->add("items.$key", __('messages.validation.item_price_negative'));
+
                     continue;
                 }
 

@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -18,7 +16,7 @@ return new class extends Migration
         foreach ($oldClients as $client) {
             // Intentar detectar si es coordenada
             $isCoords = preg_match('/^-?[\d\.]+,\s*-?[\d\.]+$/', $client->address);
-            
+
             $data = [
                 'client_id' => $client->id,
                 'label' => 'Principal', // Etiqueta por defecto
@@ -51,6 +49,6 @@ return new class extends Migration
     public function down(): void
     {
         // Borra solo las direcciones que se migraron
-         DB::table('client_addresses')->where('label', 'Principal')->delete();
+        DB::table('client_addresses')->where('label', 'Principal')->delete();
     }
 };

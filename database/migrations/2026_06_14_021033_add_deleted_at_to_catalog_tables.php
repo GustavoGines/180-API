@@ -11,17 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasColumn('products', 'deleted_at')) {
+        if (! Schema::hasColumn('products', 'deleted_at')) {
             Schema::table('products', function (Blueprint $table) {
                 $table->softDeletes();
             });
         }
-        if (!Schema::hasColumn('fillings', 'deleted_at')) {
+        if (! Schema::hasColumn('fillings', 'deleted_at')) {
             Schema::table('fillings', function (Blueprint $table) {
                 $table->softDeletes();
             });
         }
-        if (!Schema::hasColumn('extras', 'deleted_at')) {
+        if (! Schema::hasColumn('extras', 'deleted_at')) {
             Schema::table('extras', function (Blueprint $table) {
                 $table->softDeletes();
             });

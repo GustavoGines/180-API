@@ -28,6 +28,7 @@ class AvailabilityTest extends TestCase
         if ($time) {
             $params .= "&time={$time}";
         }
+
         return $this->getJson("/api/availability?{$params}");
     }
 
@@ -63,13 +64,13 @@ class AvailabilityTest extends TestCase
         // Llenar el cupo con pedidos confirmados
         for ($i = 0; $i < $capacity; $i++) {
             Order::create([
-                'client_id'  => $client->id,
+                'client_id' => $client->id,
                 'event_date' => $date,
                 'start_time' => '10:00',
-                'end_time'   => '12:00',
-                'status'     => 'confirmed',
-                'total'      => 1000,
-                'deposit'    => 0,
+                'end_time' => '12:00',
+                'status' => 'confirmed',
+                'total' => 1000,
+                'deposit' => 0,
             ]);
         }
 

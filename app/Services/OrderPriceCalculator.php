@@ -6,9 +6,6 @@ class OrderPriceCalculator
 {
     /**
      * Calcula el total de los items.
-     *
-     * @param array $items
-     * @return float
      */
     public function calculateItemsTotal(array $items): float
     {
@@ -26,10 +23,6 @@ class OrderPriceCalculator
 
     /**
      * Calcula el gran total incluyendo delivery.
-     *
-     * @param float $itemsTotal
-     * @param float $deliveryCost
-     * @return float
      */
     public function calculateGrandTotal(float $itemsTotal, float $deliveryCost): float
     {
@@ -38,10 +31,6 @@ class OrderPriceCalculator
 
     /**
      * Calcula el depósito o seña válido (no mayor al total).
-     *
-     * @param float $deposit
-     * @param float $grandTotal
-     * @return float
      */
     public function calculateValidDeposit(float $deposit, float $grandTotal): float
     {

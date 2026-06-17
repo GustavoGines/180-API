@@ -2,68 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use App\Models\Client;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Services\AiBrainService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CopilotController extends Controller
 {
+    protected AiBrainService $brainService;
+
+    public function __construct(AiBrainService $brainService)
+    {
+        $this->brainService = $brainService;
+    }
+
     public function process(Request $request)
     {
         $inputMessages = $request->input('messages');
-        
-        if (!$inputMessages || !is_array($inputMessages)) {
+
+        if (! $inputMessages || ! is_array($inputMessages)) {
             return response()->json(['error' => 'Se requiere un array de mensajes.'], 400);
         }
 
-        $today = now()->format('Y-m-d');
-        
         $messages = [
-            ['role' => 'system', 'content' => 'Eres Copiloto 180, el asistente inteligente de una pastelería. Hoy es ' . $today . '. Usa esta fecha como referencia para resolver palabras como "hoy" o "mañana". Tu trabajo es ayudar a los dueños a gestionar el negocio usando las herramientas disponibles. 
-IMPORTANTE: Debes responder SIEMPRE con una estructura JSON estricta. El formato debe ser:
-{
-  "reply": "Texto amigable para el usuario",
-  "ui_widget": {
-    "type": "order_card", // o null si es solo una charla normal
-    "data": {
-      "title": "Pedido #123",
-      "subtitle": "Cliente: Nombre",
-      "total": "$5000"
-    }
-  }
-}
-Si la conversación es casual, usa type null.']
+            ['role' => 'system', 'content' => $this->brainService->getSystemPrompt(false)],
         ];
-        
+
         $messages = array_merge($messages, $inputMessages);
-        
-        $tools = [
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_daily_revenue',
-                    'description' => 'Obtiene la facturación total de ventas para una fecha específica.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'date' => [
-                                'type' => 'string',
-                                'description' => 'La fecha exacta en formato YYYY-MM-DD para la cual obtener la facturación.',
-                            ]
-                        ],
-                        'required' => ['date']
-                    ]
-                ]
-            ]
-        ];
+        $tools = $this->brainService->getTools();
 
         // Primera llamada a OpenAI
-        $response = $this->callOpenAI($messages, $tools);
+        $response = $this->brainService->callOpenAI($messages, $tools, true);
 
         if (isset($response['error'])) {
-             Log::error('OpenAI API Error: ' . json_encode($response['error']));
-             return response()->json(['error' => 'Error al comunicarse con OpenAI.'], 502);
+            Log::error('OpenAI API Error: '.json_encode($response['error']));
+
+            return response()->json(['error' => 'Error al comunicarse con OpenAI.'], 502);
         }
 
         $responseMessage = $response['choices'][0]['message'];
@@ -73,72 +50,224 @@ Si la conversación es casual, usa type null.']
             $messages[] = $responseMessage; // Agregar el mensaje de la IA con los tool_calls al historial
 
             foreach ($responseMessage['tool_calls'] as $toolCall) {
-                if ($toolCall['function']['name'] === 'get_daily_revenue') {
-                    $args = json_decode($toolCall['function']['arguments'], true);
-                    $date = $args['date'] ?? $today;
-                    
-                    // Ejecutar función real (Query DB)
-                    $revenue = Order::whereDate('created_at', $date)->sum('total');
+                $toolName = $toolCall['function']['name'];
+                $args = json_decode($toolCall['function']['arguments'], true);
 
-                    // Agregar el resultado al historial como 'tool'
-                    $messages[] = [
-                        'tool_call_id' => $toolCall['id'],
-                        'role' => 'tool',
-                        'name' => 'get_daily_revenue',
-                        'content' => json_encode(['revenue' => (float)$revenue])
-                    ];
+                $toolResponse = [];
+
+                try {
+                    if ($toolName === 'create_client') {
+                        $clientName = trim($args['name']);
+                        $existingClient = Client::where(DB::raw('lower(name)'), strtolower($clientName))->first();
+
+                        if ($existingClient) {
+                            if (! empty($args['phone'])) {
+                                $existingClient->phone = $args['phone'];
+                                $existingClient->save();
+                            }
+                            $client = $existingClient;
+                        } else {
+                            $client = Client::create([
+                                'name' => $clientName,
+                                'phone' => $args['phone'] ?? null,
+                            ]);
+                        }
+                        $toolResponse = ['success' => true, 'client' => $client];
+                    } elseif ($toolName === 'search_client') {
+                        $clientName = trim($args['name']);
+                        $matchedClient = $this->brainService->matchClient($clientName, 75);
+
+                        if ($matchedClient) {
+                            $clientData = Client::select('id', 'name', 'phone')->find($matchedClient->id);
+                            $toolResponse = ['success' => true, 'client' => $clientData];
+                        } else {
+                            $toolResponse = ['success' => false, 'message' => "No se encontró ningún cliente llamado '$clientName' en la base de datos."];
+                        }
+                    } elseif ($toolName === 'search_orders_by_client') {
+                        $clientName = trim($args['client_name']);
+                        $matchedClient = $this->brainService->matchClient($clientName, 75);
+
+                        if ($matchedClient) {
+                            $orders = Order::with(['client', 'items'])
+                                ->where('client_id', $matchedClient->id)
+                                ->orderBy('event_date', 'desc')
+                                ->get();
+                            $toolResponse = ['success' => true, 'orders' => $orders];
+                        } else {
+                            $toolResponse = ['success' => false, 'message' => "No se encontraron pedidos porque el cliente '$clientName' no existe."];
+                        }
+                    } elseif ($toolName === 'create_order') {
+                        $clientName = $args['client_name'];
+                        $matchedClient = $this->brainService->matchClient($clientName, 85);
+
+                        $clientId = null;
+                        if ($matchedClient) {
+                            $clientId = $matchedClient->id;
+                        } else {
+                            $newClient = Client::create(['name' => $clientName]);
+                            $clientId = $newClient->id;
+                        }
+
+                        // Parseamos usando AiBrainService centralizado
+                        $parsedData = $this->brainService->parseOrderArguments($args['items']);
+                        $total = $parsedData['total'];
+                        $orderItemsData = $parsedData['parsedItems'];
+
+                        DB::beginTransaction();
+                        try {
+                            $order = Order::create([
+                                'client_id' => $clientId,
+                                'event_date' => $args['event_date'],
+                                'status' => 'pending',
+                                'total' => $total,
+                                'deposit' => 0,
+                                'delivery_cost' => 0,
+                                'notes' => 'Creado por IA',
+                                'is_paid' => false,
+                            ]);
+
+                            foreach ($orderItemsData as $itemData) {
+                                OrderItem::create([
+                                    'order_id' => $order->id,
+                                    'name' => $itemData['name'],
+                                    'qty' => $itemData['qty'],
+                                    'base_price' => $itemData['base_price'],
+                                    'customization_notes' => $itemData['customization_notes'],
+                                    'customization_json' => $itemData['customization_json'],
+                                ]);
+                            }
+                            DB::commit();
+                            $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            throw $e;
+                        }
+                    } elseif ($toolName === 'update_order') {
+                        $clientName = $args['client_name'];
+                        $matchedClient = $this->brainService->matchClient($clientName, 85);
+
+                        if (! $matchedClient) {
+                            throw new \Exception('No se encontraron órdenes activas para ese cliente (el cliente no existe).');
+                        }
+
+                        $pendingOrders = Order::where('client_id', $matchedClient->id)
+                            ->where('status', 'pending')
+                            ->get();
+
+                        if ($pendingOrders->count() === 0) {
+                            throw new \Exception("No se encontraron órdenes activas para el cliente {$matchedClient->name}.");
+                        }
+
+                        if ($pendingOrders->count() > 1) {
+                            throw new \Exception("Hay más de un pedido pendiente para el cliente {$matchedClient->name}. Por favor consúltale al usuario la fecha del pedido que desea editar o especifica más detalles.");
+                        }
+
+                        $order = $pendingOrders->first();
+
+                        DB::beginTransaction();
+                        try {
+                            if ($args['action'] === 'change_date' && isset($args['new_event_date'])) {
+                                $order->event_date = $args['new_event_date'];
+                                $order->save();
+                            }
+
+                            if ($args['action'] === 'add_items' && isset($args['items_to_add'])) {
+
+                                // Usar el AiBrainService para parsear los items a agregar
+                                $parsedData = $this->brainService->parseOrderArguments($args['items_to_add']);
+
+                                foreach ($parsedData['parsedItems'] as $itemData) {
+                                    OrderItem::create([
+                                        'order_id' => $order->id,
+                                        'name' => $itemData['name'],
+                                        'qty' => $itemData['qty'],
+                                        'base_price' => $itemData['base_price'],
+                                        'customization_notes' => $itemData['customization_notes'],
+                                        'customization_json' => $itemData['customization_json'],
+                                    ]);
+                                }
+
+                                // Recalcular total
+                                $newTotal = OrderItem::where('order_id', $order->id)
+                                    ->get()
+                                    ->sum(function ($i) {
+                                        return $i->base_price * $i->qty;
+                                    });
+
+                                $order->total = $newTotal;
+                                $order->save();
+                            }
+                            DB::commit();
+                            $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            throw $e;
+                        }
+                    } elseif ($toolName === 'get_orders_by_date') {
+                        $orders = Order::with('client', 'items')
+                            ->whereDate('event_date', $args['date'])
+                            ->get();
+                        $toolResponse = ['success' => true, 'orders' => $orders];
+                    } elseif ($toolName === 'get_production_summary') {
+                        $summary = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
+                            ->whereBetween('orders.event_date', [$args['start_date'], $args['end_date']])
+                            ->whereNull('orders.deleted_at')
+                            ->select('order_items.name', DB::raw('SUM(order_items.qty) as total_quantity'))
+                            ->groupBy('order_items.name')
+                            ->get();
+                        $toolResponse = ['success' => true, 'summary' => $summary];
+                    } elseif ($toolName === 'get_revenue_by_period') {
+                        $revenue = Order::whereBetween('event_date', [$args['start_date'], $args['end_date']])
+                            ->sum('total');
+                        $toolResponse = ['success' => true, 'revenue' => (float) $revenue];
+                    } elseif ($toolName === 'navigate_to_calendar') {
+                        $toolResponse = ['success' => true, 'date' => $args['date']];
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Copilot Tool Error ($toolName): ".$e->getMessage());
+                    $toolResponse = ['success' => false, 'error' => $e->getMessage()];
                 }
+
+                // Agregar el resultado al historial como 'tool'
+                $messages[] = [
+                    'tool_call_id' => $toolCall['id'],
+                    'role' => 'tool',
+                    'name' => $toolName,
+                    'content' => json_encode($toolResponse),
+                ];
             }
 
             // Segunda llamada a OpenAI para que arme la respuesta amigable con la data
-            $finalResponse = $this->callOpenAI($messages, $tools, true);
-            
+            $finalResponse = $this->brainService->callOpenAI($messages, null, true);
+
             if (isset($finalResponse['error'])) {
-                 Log::error('OpenAI API Error (2nd call): ' . json_encode($finalResponse['error']));
-                 return response()->json(['error' => 'Error al comunicarse con OpenAI.'], 502);
+                Log::error('OpenAI API Error (2nd call): '.json_encode($finalResponse['error']));
+
+                return response()->json(['error' => 'Error al comunicarse con OpenAI.'], 502);
             }
-            
-            $finalContent = $finalResponse['choices'][0]['message']['content'];
-            
-            $decodedContent = json_decode($finalContent, true) ?? [];
-            
+
+            $finalContent = $finalResponse['choices'][0]['message']['content'] ?? '{"reply": "Lo siento, no pude formular una respuesta con esa información."}';
+            $cleanContent = preg_replace('/```(?:json)?\s*|\s*```/', '', trim($finalContent));
+
+            $decodedContent = json_decode($cleanContent, true) ?? [];
+
             return response()->json([
                 'reply' => $decodedContent['reply'] ?? $finalContent,
                 'ui_widget' => $decodedContent['ui_widget'] ?? null,
-                'tool_used' => true, 
-                'raw_tool_calls' => $responseMessage['tool_calls']
+                'tool_used' => true,
+                'raw_tool_calls' => $responseMessage['tool_calls'],
             ]);
         }
 
         // Si no usó tool, devuelve la respuesta directa
-        $decodedContent = json_decode($responseMessage['content'], true);
-        
+        $rawContent = $responseMessage['content'];
+        $cleanContent = preg_replace('/```(?:json)?\s*|\s*```/', '', trim($rawContent));
+        $decodedContent = json_decode($cleanContent, true) ?? [];
+
         return response()->json([
-            'reply' => $decodedContent['reply'] ?? $responseMessage['content'],
+            'reply' => $decodedContent['reply'] ?? $rawContent,
             'ui_widget' => $decodedContent['ui_widget'] ?? null,
-            'tool_used' => false
+            'tool_used' => false,
         ]);
-    }
-
-    private function callOpenAI(array $messages, ?array $tools = null, bool $forceJson = false)
-    {
-        $payload = [
-            'model' => 'gpt-4o-mini',
-            'messages' => $messages,
-        ];
-        
-        if ($forceJson) {
-            $payload['response_format'] = ['type' => 'json_object'];
-        }
-        
-        if ($tools) {
-            $payload['tools'] = $tools;
-        }
-
-        $response = Http::withoutVerifying()
-            ->withToken(env('OPENAI_API_KEY'))
-            ->post('https://api.openai.com/v1/chat/completions', $payload);
-
-        return $response->json();
     }
 }

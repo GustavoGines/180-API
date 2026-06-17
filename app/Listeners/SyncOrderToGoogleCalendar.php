@@ -15,9 +15,7 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    public function __construct(private GoogleCalendarService $service)
-    {
-    }
+    public function __construct(private GoogleCalendarService $service) {}
 
     /**
      * Handle OrderCreated event.
@@ -28,15 +26,15 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
             $order = $event->order;
             // Recargamos relaciones necesarias si no están
             $order->loadMissing(['client', 'items']);
-            
+
             $googleEventId = $this->service->createFromOrder($order);
-            
+
             // Guardamos el ID del evento de Google en la orden
             // Nota: Al ser async, esto ocurrirá después de que la respuesta HTTP se haya enviado.
             $order->google_event_id = $googleEventId;
             $order->saveQuietly(); // Evitar disparar eventos de 'updated' recursivamente si observamos 'saved'
         } catch (\Exception $e) {
-            Log::error("Error async Google Calendar (Create) Order {$event->order->id}: " . $e->getMessage());
+            Log::error("Error async Google Calendar (Create) Order {$event->order->id}: ".$e->getMessage());
         }
     }
 
@@ -48,10 +46,10 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
         try {
             $order = $event->order;
             $order->loadMissing(['client', 'items']);
-            
+
             $this->service->updateFromOrder($order);
         } catch (\Exception $e) {
-            Log::error("Error async Google Calendar (Update) Order {$event->order->id}: " . $e->getMessage());
+            Log::error("Error async Google Calendar (Update) Order {$event->order->id}: ".$e->getMessage());
         }
     }
 
@@ -67,14 +65,13 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
         try {
             $this->service->deleteEvent($event->googleEventId);
         } catch (\Exception $e) {
-            Log::error("Error async Google Calendar (Delete) Event {$event->googleEventId}: " . $e->getMessage());
+            Log::error("Error async Google Calendar (Delete) Event {$event->googleEventId}: ".$e->getMessage());
         }
     }
 
     /**
      * Register the listeners for the subscriber.
      *
-     * @param  \Illuminate\Events\Dispatcher  $events
      * @return array<string, string>
      */
     public function subscribe(Dispatcher $events): array

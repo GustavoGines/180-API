@@ -1,16 +1,16 @@
 <?php
 
 use App\Http\Controllers\AdminCatalogController;
+use App\Http\Controllers\AiAssistantController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\ClientAddressController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CopilotController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
 use App\Http\Resources\UserResource;
-use App\Http\Controllers\CopilotController;
-use App\Http\Controllers\AiAssistantController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;

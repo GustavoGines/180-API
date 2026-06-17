@@ -6,7 +6,6 @@ use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,7 +29,6 @@ class AppServiceProvider extends ServiceProvider
                 \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer')
             );
         });
-
 
         $dateSerializer = function ($c) {
             return $c->setTimezone(config('app.timezone', 'America/Argentina/Buenos_Aires'))

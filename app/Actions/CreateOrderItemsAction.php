@@ -20,7 +20,7 @@ class CreateOrderItemsAction
                                         : null,
             ];
         }, $itemsDataRaw);
-        
+
         $order->items()->createMany($itemsData);
     }
 }

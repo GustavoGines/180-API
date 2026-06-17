@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Extra extends Model
 {
     use SoftDeletes;
+
     protected $guarded = [];
 
     protected $casts = [
