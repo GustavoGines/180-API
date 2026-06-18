@@ -91,6 +91,7 @@ class CopilotController extends Controller
                             $orders = Order::with(['client', 'items'])
                                 ->where('client_id', $matchedClient->id)
                                 ->orderBy('event_date', 'desc')
+                                ->limit(5)
                                 ->get();
                             $toolResponse = ['success' => true, 'orders' => $orders];
                         } else {
@@ -118,6 +119,7 @@ class CopilotController extends Controller
                             $order = Order::create([
                                 'client_id' => $clientId,
                                 'event_date' => $args['event_date'],
+                                'start_time' => $args['start_time'] ?? null,
                                 'status' => 'pending',
                                 'total' => $total,
                                 'deposit' => 0,
@@ -203,9 +205,58 @@ class CopilotController extends Controller
                             DB::rollBack();
                             throw $e;
                         }
+                    } elseif ($toolName === 'register_payment') {
+                        $clientName = $args['client_name'];
+                        $amount = (float) $args['amount'];
+                        $paymentMethod = $args['payment_method'] ?? 'no especificado';
+                        $matchedClient = $this->brainService->matchClient($clientName, 85);
+
+                        if (! $matchedClient) {
+                            throw new \Exception('No se encontraron órdenes activas para ese cliente (el cliente no existe).');
+                        }
+
+                        $pendingOrders = Order::where('client_id', $matchedClient->id)
+                            ->where('status', 'pending')
+                            ->get();
+
+                        if ($pendingOrders->count() === 0) {
+                            throw new \Exception("No se encontraron órdenes activas para el cliente {$matchedClient->name}.");
+                        }
+
+                        if ($pendingOrders->count() > 1) {
+                            throw new \Exception("Hay más de un pedido pendiente para el cliente {$matchedClient->name}. Por favor consúltale al usuario a qué pedido desea aplicar el pago.");
+                        }
+
+                        $order = $pendingOrders->first();
+
+                        if ($order->is_paid) {
+                            throw new \Exception("El pedido del cliente {$matchedClient->name} ya se encuentra pagado en su totalidad.");
+                        }
+
+                        DB::beginTransaction();
+                        try {
+                            $order->deposit += $amount;
+                            
+                            if ($order->deposit >= $order->total) {
+                                $order->deposit = $order->total;
+                                $order->is_paid = true;
+                            }
+
+                            $noteAddition = "[Seña $" . number_format($amount, 2, ',', '.') . " en " . ucfirst($paymentMethod) . "]";
+                            $order->notes = empty($order->notes) ? $noteAddition : $order->notes . "\n" . $noteAddition;
+
+                            $order->save();
+                            
+                            DB::commit();
+                            $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            throw $e;
+                        }
                     } elseif ($toolName === 'get_orders_by_date') {
                         $orders = Order::with('client', 'items')
                             ->whereDate('event_date', $args['date'])
+                            ->limit(10)
                             ->get();
                         $toolResponse = ['success' => true, 'orders' => $orders];
                     } elseif ($toolName === 'search_orders') {
@@ -219,15 +270,15 @@ class CopilotController extends Controller
                         $totalCount = $query->count();
                         $totalSum = $query->sum('total');
 
-                        // Limitamos a los primeros 20 para no explotar el contexto de OpenAI
-                        $orders = $query->orderBy('event_date', 'desc')->limit(20)->get();
+                        // Limitamos a los primeros 5 para no saturar la pantalla ni el contexto de OpenAI
+                        $orders = $query->orderBy('event_date', 'desc')->limit(5)->get();
 
                         $toolResponse = [
                             'success' => true,
                             'total_count' => $totalCount,
                             'total_revenue' => (float) $totalSum,
                             'orders' => $orders,
-                            'message' => 'Se devuelven solo los 20 más recientes para no saturar. Menciona el total_count y total_revenue al usuario.',
+                            'message' => 'Se devuelven los 5 más recientes. Menciona el total_count y total_revenue. MUY IMPORTANTE: En el "reply", DEBES preguntar obligatoriamente: "¿Deseas afinar la búsqueda por cliente o por fecha?". DEBES usar el ui_widget "order_list" para mostrar estos 5 pedidos. NO escribas la lista de pedidos en el "reply" de texto.',
                         ];
                     } elseif ($toolName === 'get_production_summary') {
                         $summary = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')

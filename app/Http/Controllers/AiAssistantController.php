@@ -111,6 +111,7 @@ class AiAssistantController extends Controller
                 $responseData['is_new_client'] = $isNewClient;
                 $responseData['suggested_clients'] = $suggestedClients;
                 $responseData['event_date'] = $args['event_date'] ?? null;
+                $responseData['start_time'] = $args['start_time'] ?? null; // BUG-V02: exponer horario a Flutter
                 $responseData['total'] = $parsedData['total'];
             }
 

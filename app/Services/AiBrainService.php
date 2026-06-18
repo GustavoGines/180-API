@@ -39,12 +39,13 @@ class AiBrainService
             $context .= "{\n  \"reply\": \"Texto amigable para el usuario\",\n  \"ui_widget\": {\n    \"type\": \"order_card\", // o null si es solo charla\n    \"data\": { ... }\n  }\n}\n";
             $context .= "REGLAS PARA ui_widget (type y data):\n";
             $context .= "- Si usaste create_client o search_client: devuelve type 'client_card' con data: {'name': '...', 'phone': '...'}\n";
-            $context .= "- Si usaste create_order o update_order: devuelve type 'order_card' con data: {'title': 'Pedido para [Nombre Cliente]', 'subtitle': 'Resumen muy detallado de los productos, incluyendo cantidad, peso, rellenos y extras', 'total': '$ [Monto total]', 'order_id': [ID Numérico del pedido], 'event_date': '[Fecha del pedido YYYY-MM-DD]'}\n";
-            $context .= "- Si usaste get_orders_by_date, search_orders o search_orders_by_client: devuelve type 'order_list' con data: {'orders': [...]}\n";
+            $context .= "- Si usaste create_order, update_order o register_payment: devuelve type 'order_card' con data: {'title': 'Pedido para [Nombre Cliente]', 'subtitle': 'Resumen muy detallado de los productos, incluyendo cantidad, peso, rellenos y extras', 'total': '$ [Monto total]', 'order_id': [ID Numérico del pedido], 'event_date': '[Fecha del pedido YYYY-MM-DD]'}\n";
+            $context .= "- Si usaste get_orders_by_date, search_orders o search_orders_by_client: devuelve type 'order_list' con data: {'orders': [{'id': 123, 'client_name': '...', 'event_date': '...', 'status': '...'}]}\n";
             $context .= "- Si usaste get_production_summary: devuelve type 'production_list' con data: {'summary': [...]}\n";
             $context .= "- Si usaste get_revenue_by_period: devuelve type 'revenue_card' con data: {'period': 'Facturación', 'revenue': 123456}\n";
-            $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}\n";
+            $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}. CRÍTICO: la fecha en 'data.date' SIEMPRE debe ser un día completo en formato YYYY-MM-DD (ej: '2026-07-01'). Si el usuario pide ir a un mes (ej: 'julio', 'agosto 2026'), usa el primer día de ese mes (ej: '2026-07-01'). NUNCA envíes solo 'YYYY-MM'.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
+            $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
             $context .= "ERES UNA IA CON CONTROL TOTAL SOBRE LA INTERFAZ. Si el usuario pide ir a una fecha, saltar a un día, o ver el calendario, TIENES QUE usar 'navigate_to_calendar'. NUNCA digas que no puedes hacerlo.";
         } else {
             // Instrucciones extra específicas para el modo Extracción pura (Voz)
@@ -129,6 +130,7 @@ class AiBrainService
                         'properties' => [
                             'client_name' => ['type' => 'string', 'description' => 'Nombre del cliente. Para buscarlo o crearlo automáticamente.'],
                             'event_date' => ['type' => 'string', 'description' => 'Fecha de entrega YYYY-MM-DD.'],
+                            'start_time' => ['type' => 'string', 'description' => 'Horario de retiro o entrega en formato HH:MM (ej. 15:30). Omitir si no se especifica.'],
                             'items' => [
                                 'type' => 'array',
                                 'items' => [
@@ -196,6 +198,22 @@ class AiBrainService
                             ],
                         ],
                         'required' => ['client_name', 'action'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'register_payment',
+                    'description' => 'Registra un pago parcial (seña) o total para el pedido pendiente de un cliente.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'client_name' => ['type' => 'string', 'description' => 'Nombre del cliente para buscar su pedido pendiente.'],
+                            'amount' => ['type' => 'number', 'description' => 'El monto abonado por el cliente.'],
+                            'payment_method' => ['type' => 'string', 'description' => 'Método de pago (ej. efectivo, transferencia, tarjeta). Opcional.'],
+                        ],
+                        'required' => ['client_name', 'amount'],
                     ],
                 ],
             ],
@@ -392,14 +410,31 @@ class AiBrainService
                 $customizationJson['selected_extras_unit'] = $selectedExtrasUnit;
             }
 
+            // --- Alias planos para el Flutter Voice Assistant (BUG-V01, V03, V04) ---
+            // Exponemos los campos clave en el primer nivel del DTO para que Flutter
+            // pueda leerlos directamente. customization_json se mantiene intacto
+            // para la persistencia del Copiloto y la DB.
+            $allFillingsFlat = array_merge(
+                $selectedFillings,
+                array_column($selectedExtraFillings, 'name')
+            );
+            $allExtrasFlat = array_merge(
+                array_column($selectedExtrasKg, 'name'),
+                array_column($selectedExtrasUnit, 'name')
+            );
+
             $parsedItems[] = [
-                'product_id' => $matchedProduct->id,
-                'name' => $matchedProduct->name,
-                'original_name' => $item['product_name'], // Útil para frontend Voice
-                'qty' => $quantity,
-                'base_price' => $effectiveBasePrice,
+                'product_id'          => $matchedProduct->id,
+                'name'                => $matchedProduct->name,
+                'original_name'       => $item['product_name'], // Útil para frontend Voice
+                'qty'                 => $quantity,
+                'quantity'            => $quantity,              // Alias plano para Flutter (BUG-V03)
+                'weight_kg'           => $customizationJson['weight_kg'] ?? null, // Alias plano (BUG-V04)
+                'fillings'            => $allFillingsFlat,       // Alias plano: rellenos gratis + con costo (BUG-V01)
+                'extras'              => $allExtrasFlat,         // Alias plano: extras por kg + por unidad (BUG-V01)
+                'base_price'          => $effectiveBasePrice,
                 'customization_notes' => $item['notes'] ?? null,
-                'customization_json' => empty($customizationJson) ? null : $customizationJson,
+                'customization_json'  => empty($customizationJson) ? null : $customizationJson,
             ];
         }
 
