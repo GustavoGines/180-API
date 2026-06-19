@@ -133,6 +133,7 @@ class AiBrainService
                             'client_name' => ['type' => 'string', 'description' => 'Nombre del cliente. Para buscarlo o crearlo automáticamente.'],
                             'event_date' => ['type' => 'string', 'description' => 'Fecha de entrega YYYY-MM-DD.'],
                             'start_time' => ['type' => 'string', 'description' => 'Horario de retiro o entrega en formato HH:MM (ej. 15:30). Omitir si no se especifica.'],
+                            'general_notes' => ['type' => 'string', 'description' => 'Notas generales para TODO el pedido (ej: "entregar por la puerta de atrás", "es para un cumpleaños sorpresa"). NO incluir aquí decoraciones específicas de un producto.'],
                             'items' => [
                                 'type' => 'array',
                                 'items' => [
