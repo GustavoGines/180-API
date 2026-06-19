@@ -165,7 +165,7 @@ class AiBrainService
                 'type' => 'function',
                 'function' => [
                     'name' => 'update_order',
-                    'description' => 'Edita un pedido pendiente existente.',
+                    'description' => 'Edita un pedido activo (pendiente, confirmado o listo) existente.',
                     'parameters' => [
                         'type' => 'object',
                         'properties' => [
@@ -206,7 +206,7 @@ class AiBrainService
                 'type' => 'function',
                 'function' => [
                     'name' => 'register_payment',
-                    'description' => 'Registra un pago parcial (seña) o total para el pedido pendiente de un cliente.',
+                    'description' => 'Registra un pago parcial (seña) o total para un pedido activo (pendiente, confirmado o listo) de un cliente.',
                     'parameters' => [
                         'type' => 'object',
                         'properties' => [

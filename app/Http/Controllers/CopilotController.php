@@ -153,7 +153,7 @@ class CopilotController extends Controller
                         }
 
                         $pendingOrders = Order::where('client_id', $matchedClient->id)
-                            ->where('status', 'pending')
+                            ->whereIn('status', ['pending', 'confirmed', 'ready'])
                             ->get();
 
                         if ($pendingOrders->count() === 0) {
@@ -216,7 +216,7 @@ class CopilotController extends Controller
                         }
 
                         $pendingOrders = Order::where('client_id', $matchedClient->id)
-                            ->where('status', 'pending')
+                            ->whereIn('status', ['pending', 'confirmed', 'ready'])
                             ->get();
 
                         if ($pendingOrders->count() === 0) {
