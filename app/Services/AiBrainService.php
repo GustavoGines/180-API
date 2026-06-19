@@ -49,6 +49,7 @@ class AiBrainService
             $context .= "- Si el usuario te pregunta por el catálogo, productos, rellenos o extras disponibles: enuméralos directamente de forma amigable en el campo 'reply' usando saltos de línea (\\n). Usa type null para ui_widget.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
             $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
+            $context .= "⚠️ CRÍTICO: Si el usuario menciona WhatsApp, avisar a un cliente, mandar mensaje, notificar, o despachar a alguien, DEBES usar SIEMPRE la herramienta 'generate_dispatch_message'. NUNCA generes una URL de WhatsApp manualmente ni escribas el enlace en el 'reply'. SOLO usa la herramienta.\n";
             $context .= "ERES UNA IA CON CONTROL TOTAL SOBRE LA INTERFAZ. Si el usuario pide ir a una fecha, saltar a un día, o ver el calendario, TIENES QUE usar 'navigate_to_calendar'. NUNCA digas que no puedes hacerlo.";
         } else {
             // Instrucciones extra específicas para el modo Extracción pura (Voz)
@@ -283,7 +284,7 @@ class AiBrainService
                 'type' => 'function',
                 'function' => [
                     'name' => 'generate_dispatch_message',
-                    'description' => 'Genera un mensaje de WhatsApp personalizado para avisarle al cliente que su pedido está listo para retirar. Úsalo cuando el usuario diga algo como "avisarle a [cliente] que su pedido está listo", "generar mensaje de despacho para [cliente]" o "mandarle WhatsApp a [cliente]".',
+                    'description' => 'Genera un mensaje de WhatsApp personalizado para avisar al cliente. DEBES usar esta herramienta siempre que el usuario mencione: avisarle por WhatsApp, mandarle mensaje, notificarle, generar despacho, avisar que el pedido está listo, o cualquier intención de contactar a un cliente por WhatsApp. NUNCA generes el mensaje o el link manualmente. SIEMPRE usa esta herramienta.',
                     'parameters' => [
                         'type' => 'object',
                         'properties' => [
