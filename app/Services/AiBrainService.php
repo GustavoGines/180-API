@@ -104,7 +104,7 @@ class AiBrainService
                             'end_date' => ['type' => 'string', 'description' => 'Fecha fin YYYY-MM-DD'],
                             'is_paid' => ['type' => 'boolean', 'description' => 'Opcional. True para buscar solo pagados, false para solo no pagados. Omítelo si quieres ambos.'],
                         ],
-                        'required' => ['start_date', 'end_date'],
+                        'required' => [],
                     ],
                 ],
             ],

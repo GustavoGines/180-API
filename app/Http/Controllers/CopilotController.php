@@ -324,8 +324,10 @@ class CopilotController extends Controller
                             ->get();
                         $toolResponse = ['success' => true, 'orders' => $orders];
                     } elseif ($toolName === 'search_orders') {
-                        $query = Order::with('client', 'items')
-                            ->whereBetween('event_date', [$args['start_date'], $args['end_date']]);
+                        $query = Order::with('client', 'items');
+                        if (isset($args['start_date']) && isset($args['end_date'])) {
+                            $query->whereBetween('event_date', [$args['start_date'], $args['end_date']]);
+                        }
 
                         if (isset($args['is_paid'])) {
                             $query->where('is_paid', $args['is_paid']);
