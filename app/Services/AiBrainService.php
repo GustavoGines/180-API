@@ -46,10 +46,12 @@ class AiBrainService
             $context .= "- Si usaste get_revenue_by_period: devuelve type 'revenue_card' con data: {'period': 'Facturación', 'revenue': 123456}\n";
             $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}. CRÍTICO: la fecha en 'data.date' SIEMPRE debe ser un día completo en formato YYYY-MM-DD (ej: '2026-07-01'). Si el usuario pide ir a un mes (ej: 'julio', 'agosto 2026'), usa el primer día de ese mes (ej: '2026-07-01'). NUNCA envíes solo 'YYYY-MM'.\n";
             $context .= "- ⚠️ CRÍTICO generate_dispatch_message: Cuando usaste 'generate_dispatch_message', DEBES OBLIGATORIAMENTE devolver type 'whatsapp_dispatch_card'. NUNCA devuelvas order_card ni text plano. El data DEBE ser EXACTAMENTE: {'phone': valor_de_phone_que_te_devolvio_la_herramienta, 'message': valor_de_message_que_te_devolvio_la_herramienta, 'client_name': valor_de_client_name_que_te_devolvio_la_herramienta}. El campo 'reply' debe ser solo: 'Aquí tienes el mensaje listo para enviar por WhatsApp.'\n";
+            $context .= "- Si usaste bulk_mark_paid: devuelve type 'bulk_payment_result' con data: {'affected': N, 'total_amount': 123456, 'filter_description': 'descripción amigable de los filtros aplicados'}.\n";
             $context .= "- Si el usuario te pregunta por el catálogo, productos, rellenos o extras disponibles: enuméralos directamente de forma amigable en el campo 'reply' usando saltos de línea (\\n). Usa type null para ui_widget.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
             $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
-            $context .= "⚠️ CRÍTICO: Si el usuario menciona WhatsApp, avisar a un cliente, mandar mensaje, notificar, o despachar a alguien, DEBES usar SIEMPRE la herramienta 'generate_dispatch_message'. NUNCA generes una URL de WhatsApp manualmente ni escribas el enlace en el 'reply'. SOLO usa la herramienta.\n";
+            $context .= "⚠️ CRÍTICO: Si el usuario menciona WhatsApp, avisar a un cliente, mandar mensaje, notificar, o despachar a alguien (ej: 'dame el mensaje de despacho', 'para whatsapp', 'mándale a maría'), DEBES usar SIEMPRE la herramienta 'generate_dispatch_message'. NUNCA escribas el texto del mensaje por tu cuenta en el 'reply'. NUNCA generes una URL de WhatsApp manualmente. SOLO usa la herramienta.\n";
+            $context .= "⚠️ CRÍTICO: Si el usuario pide cobrar masivamente, marcar múltiples pedidos como pagados, o cobrar todos los pedidos de un período/cliente, DEBES usar la herramienta 'bulk_mark_paid'. NUNCA lo hagas manualmente.\n";
             $context .= "ERES UNA IA CON CONTROL TOTAL SOBRE LA INTERFAZ. Si el usuario pide ir a una fecha, saltar a un día, o ver el calendario, TIENES QUE usar 'navigate_to_calendar'. NUNCA digas que no puedes hacerlo.";
         } else {
             // Instrucciones extra específicas para el modo Extracción pura (Voz)
@@ -291,6 +293,23 @@ class AiBrainService
                             'client_name' => ['type' => 'string', 'description' => 'Nombre del cliente para buscar su pedido activo.'],
                         ],
                         'required' => ['client_name'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'bulk_mark_paid',
+                    'description' => 'Marca como pagados múltiples pedidos de forma masiva. Úsalo cuando el usuario pida cobrar o marcar como pagados varios pedidos a la vez (ej: "marca todos los entregados de junio como pagados", "cobrar todos los pedidos de octubre", "marcar todos los entregados como pagados"). REQUIERE al menos uno de estos filtros: client_name, o (start_date + end_date). Sin filtro, el sistema rechaza la operación. Ejecuta directamente sin pedir confirmación.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'client_name' => ['type' => 'string', 'description' => 'Opcional. Nombre del cliente para marcar todos sus pedidos como pagados.'],
+                            'start_date'  => ['type' => 'string', 'description' => 'Opcional. Fecha inicio en formato YYYY-MM-DD. Debe usarse junto a end_date.'],
+                            'end_date'    => ['type' => 'string', 'description' => 'Opcional. Fecha fin en formato YYYY-MM-DD. Debe usarse junto a start_date.'],
+                            'status'      => ['type' => 'string', 'description' => 'Opcional. Filtrar por estado: "delivered", "completed" o "ready". Solo afecta pedidos en ese estado.'],
+                        ],
+                        'required' => [],
                     ],
                 ],
             ],

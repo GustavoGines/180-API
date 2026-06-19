@@ -317,6 +317,75 @@ class CopilotController extends Controller
                             'message'     => $message,
                             'client_name' => $matchedClient->name,
                         ];
+                    } elseif ($toolName === 'bulk_mark_paid') {
+                        // ⚠️ SAFEGUARD: Se requiere al menos un filtro válido
+                        $hasClientFilter = isset($args['client_name']) && !empty($args['client_name']);
+                        $hasDateFilter   = isset($args['start_date']) && isset($args['end_date']);
+
+                        if (!$hasClientFilter && !$hasDateFilter) {
+                            throw new \Exception('Filtro de seguridad requerido: debes indicar un cliente o un rango de fechas (start_date + end_date).');
+                        }
+
+                        // Construir query base: solo pedidos no pagados y no eliminados
+                        $query = Order::whereNull('deleted_at')->where('is_paid', false);
+
+                        // Aplicar filtro de cliente
+                        if ($hasClientFilter) {
+                            $matchedClient = $this->brainService->matchClient($args['client_name'], 80);
+                            if (!$matchedClient) {
+                                throw new \Exception("No se encontró ningún cliente con el nombre '{$args['client_name']}'." );
+                            }
+                            $query->where('client_id', $matchedClient->id);
+                        }
+
+                        // Aplicar filtro de fechas
+                        if ($hasDateFilter) {
+                            $query->whereBetween('event_date', [$args['start_date'], $args['end_date']]);
+                        }
+
+                        // Whitelist de estados permitidos
+                        if (isset($args['status'])) {
+                            $allowedStatuses = ['delivered', 'completed', 'ready', 'confirmed'];
+                            if (!in_array($args['status'], $allowedStatuses)) {
+                                throw new \Exception("Estado '{$args['status']}' no válido. Usa: delivered, completed, ready o confirmed.");
+                            }
+                            $query->where('status', $args['status']);
+                        }
+
+                        // Preview antes de ejecutar
+                        $affected     = $query->count();
+                        $totalAmount  = (float) $query->sum('total');
+
+                        if ($affected === 0) {
+                            $toolResponse = [
+                                'success'            => true,
+                                'affected'           => 0,
+                                'total_amount'       => 0,
+                                'filter_description' => 'Los filtros aplicados',
+                                'message'            => 'No se encontraron pedidos impagos con esos filtros.',
+                            ];
+                        } else {
+                            // Ejecutar de forma segura con ->each() para respetar deposit=total por pedido
+                            $query->each(function ($order) {
+                                $order->deposit = $order->total;
+                                $order->is_paid = true;
+                                $order->save();
+                            });
+
+                            // Armar descripción amigable del filtro
+                            $filterParts = [];
+                            if ($hasClientFilter) { $filterParts[] = "cliente: {$matchedClient->name}"; }
+                            if ($hasDateFilter)   { $filterParts[] = "período: {$args['start_date']} a {$args['end_date']}"; }
+                            if (isset($args['status'])) { $filterParts[] = "estado: {$args['status']}"; }
+                            $filterDescription = implode(', ', $filterParts);
+
+                            $toolResponse = [
+                                'success'            => true,
+                                'affected'           => $affected,
+                                'total_amount'       => $totalAmount,
+                                'filter_description' => $filterDescription,
+                            ];
+                        }
                     } elseif ($toolName === 'get_orders_by_date') {
                         $orders = Order::with('client', 'items')
                             ->whereDate('event_date', $args['date'])

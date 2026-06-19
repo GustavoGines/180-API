@@ -10,6 +10,7 @@ use App\Http\Controllers\CopilotController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\CopilotNoteController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +35,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // Copilot AI
     Route::post('/copilot/process', [CopilotController::class, 'process']);
+    Route::get('/copilot/notes', [CopilotNoteController::class, 'index']);
+    Route::post('/copilot/notes', [CopilotNoteController::class, 'store']);
+    Route::delete('/copilot/notes/{copilotNote}', [CopilotNoteController::class, 'destroy']);
+    
     Route::post('/ai/process-voice', [AiAssistantController::class, 'processVoice']);
 
     // --- Usuario ---
