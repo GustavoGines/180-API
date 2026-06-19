@@ -35,17 +35,17 @@ class AiBrainService
         $context .= "2. Para mesa dulce: Si el usuario pide unidades (ej. '12 cupcakes'), envía 'quantity: 12' e 'is_unit_sale: true'. Si pide docenas (ej. '1 docena'), envía 'quantity: 1' e 'is_unit_sale: false'.\n";
 
         if (! $isVoiceAssistant) {
-            $context .= "4. Para enlaces: NUNCA uses formato Markdown para los enlaces (ej. NO uses [texto](url)). Escribe la URL desnuda, o simplemente dile al usuario que use el botón en la tarjeta de contacto.\n";
+            $context .= "CRÍTICO - FORMATO DE RESPUESTA: NUNCA uses formato Markdown (asteriscos, guiones, negritas) en el campo 'reply'. El texto plano es obligatorio ya que la app no renderiza Markdown.\n";
             $context .= "IMPORTANTE: Debes responder SIEMPRE con una estructura JSON estricta. El formato debe ser:\n";
-            $context .= "{\n  \"reply\": \"Texto amigable para el usuario\",\n  \"ui_widget\": {\n    \"type\": \"order_card\", // o null si es solo charla\n    \"data\": { ... }\n  }\n}\n";
-            $context .= "REGLAS PARA ui_widget (type y data):\n";
+            $context .= "{\n  \"reply\": \"Texto amigable para el usuario (SIN Markdown)\",\n  \"ui_widget\": {\n    \"type\": \"order_card\", // o null si es solo charla\n    \"data\": { ... }\n  }\n}\n";
+            $context .= "REGLAS ABSOLUTAS PARA ui_widget (DEBES seguirlas siempre):\n";
             $context .= "- Si usaste create_client o search_client: devuelve type 'client_card' con data: {'name': '...', 'phone': '...'}\n";
             $context .= "- Si usaste create_order, update_order o register_payment: devuelve type 'order_card' con data: {'title': 'Pedido para [Nombre Cliente]', 'subtitle': 'Resumen muy detallado de los productos, incluyendo cantidad, peso, rellenos y extras', 'total': '$ [Monto total]', 'order_id': [ID Numérico del pedido], 'event_date': '[Fecha del pedido YYYY-MM-DD]'}\n";
             $context .= "- Si usaste get_orders_by_date, search_orders o search_orders_by_client: devuelve type 'order_list' con data: {'orders': [{'id': 123, 'client_name': '...', 'event_date': '...', 'status': '...'}]}\n";
             $context .= "- Si usaste get_production_summary: devuelve type 'production_list' con data: {'summary': [...]}\n";
             $context .= "- Si usaste get_revenue_by_period: devuelve type 'revenue_card' con data: {'period': 'Facturación', 'revenue': 123456}\n";
             $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}. CRÍTICO: la fecha en 'data.date' SIEMPRE debe ser un día completo en formato YYYY-MM-DD (ej: '2026-07-01'). Si el usuario pide ir a un mes (ej: 'julio', 'agosto 2026'), usa el primer día de ese mes (ej: '2026-07-01'). NUNCA envíes solo 'YYYY-MM'.\n";
-            $context .= "- Si usaste generate_dispatch_message: devuelve type 'whatsapp_dispatch_card' con data: {'phone': 'número limpio del cliente', 'message': 'mensaje generado', 'client_name': 'nombre del cliente'}.\n";
+            $context .= "- ⚠️ CRÍTICO generate_dispatch_message: Cuando usaste 'generate_dispatch_message', DEBES OBLIGATORIAMENTE devolver type 'whatsapp_dispatch_card'. NUNCA devuelvas order_card ni text plano. El data DEBE ser EXACTAMENTE: {'phone': valor_de_phone_que_te_devolvio_la_herramienta, 'message': valor_de_message_que_te_devolvio_la_herramienta, 'client_name': valor_de_client_name_que_te_devolvio_la_herramienta}. El campo 'reply' debe ser solo: 'Aquí tienes el mensaje listo para enviar por WhatsApp.'\n";
             $context .= "- Si el usuario te pregunta por el catálogo, productos, rellenos o extras disponibles: enuméralos directamente de forma amigable en el campo 'reply' usando saltos de línea (\\n). Usa type null para ui_widget.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
             $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
