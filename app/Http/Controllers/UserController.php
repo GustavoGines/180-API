@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -19,6 +20,54 @@ class UserController extends Controller
             ->get();
 
         return UserResource::collection($users);
+    }
+
+    public function updateProfile(\Illuminate\Http\Request $request)
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'avatar' => 'nullable|image|max:5120', // max 5MB
+        ]);
+
+        if ($request->hasFile('avatar')) {
+            if ($user->avatar_url) {
+                $r2BaseUrl = rtrim(Storage::disk('s3')->url(''), '/');
+                if (str_starts_with($user->avatar_url, $r2BaseUrl)) {
+                    $oldPath = ltrim(substr($user->avatar_url, strlen($r2BaseUrl)), '/');
+                    Storage::disk('s3')->delete($oldPath);
+                }
+            }
+
+            $path = $request->file('avatar')->store('profile-photos', 's3');
+            $validated['avatar_url'] = Storage::disk('s3')->url($path);
+        }
+
+        $user->update(Arr::except($validated, ['avatar']));
+        return new UserResource($user);
+    }
+
+    public function updatePassword(\Illuminate\Http\Request $request)
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:8',
+        ]);
+
+        if (!Hash::check($validated['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual es incorrecta.',
+                'errors' => ['current_password' => ['La contraseña no coincide con nuestros registros.']]
+            ], \Illuminate\Http\Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user->update([
+            'password' => Hash::make($validated['new_password'])
+        ]);
+
+        return response()->json(['message' => 'Contraseña actualizada correctamente']);
     }
 
     public function trashed()

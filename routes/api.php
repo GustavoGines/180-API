@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminCatalogController;
 use App\Http\Controllers\AiAssistantController;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\ClientAddressController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CopilotController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CopilotNoteController;
 use App\Http\Resources\UserResource;
@@ -43,9 +45,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // --- Usuario ---
     Route::get('/me', fn () => new UserResource(auth()->user()));
+    Route::put('/me', [UserController::class, 'updateProfile']);
+    Route::put('/me/password', [UserController::class, 'updatePassword']);
+
+    // --- Configuraciones Globales ---
+    Route::get('/settings', [SettingController::class, 'index']);
+    Route::post('/settings', [SettingController::class, 'updateBatch']);
 
     // --- Catálogo ---
     Route::get('/catalog', [CatalogController::class, 'index']);
+
+    // --- Analíticas ---
+    Route::get('/analytics/summary',      [AnalyticsController::class, 'summary']);
+    Route::get('/analytics/top-products', [AnalyticsController::class, 'topProducts']);
 
     // --- Clientes ---
     Route::get('/clients/trashed', [ClientController::class, 'trashed']);
