@@ -253,6 +253,70 @@ class CopilotController extends Controller
                             DB::rollBack();
                             throw $e;
                         }
+                    } elseif ($toolName === 'generate_dispatch_message') {
+                        $clientName = $args['client_name'];
+                        $matchedClient = $this->brainService->matchClient($clientName, 85);
+
+                        if (! $matchedClient) {
+                            throw new \Exception("No se encontró ningún cliente con el nombre '{$clientName}'.");
+                        }
+
+                        $order = Order::with('items')
+                            ->where('client_id', $matchedClient->id)
+                            ->whereIn('status', ['pending', 'confirmed', 'ready'])
+                            ->orderBy('event_date', 'asc')
+                            ->first();
+
+                        if (! $order) {
+                            throw new \Exception("No se encontraron pedidos activos para el cliente {$matchedClient->name}.");
+                        }
+
+                        // Construir resumen de productos
+                        $productSummary = $order->items->map(function ($item) {
+                            $parts = [];
+                            if ($item->qty != 1) {
+                                $parts[] = number_format($item->qty, 0) . 'x';
+                            }
+                            $parts[] = $item->name;
+                            $cj = is_string($item->customization_json)
+                                ? json_decode($item->customization_json, true)
+                                : $item->customization_json;
+                            if (! empty($cj['weight_kg'])) {
+                                $parts[] = '('.$cj['weight_kg'].'kg)';
+                            }
+
+                            return implode(' ', $parts);
+                        })->implode(', ');
+
+                        // Calcular saldo pendiente
+                        $saldo = $order->total - ($order->deposit ?? 0);
+                        $saldoStr = $saldo > 0
+                            ? ' Recordá que el saldo pendiente es de $'.number_format($saldo, 0, ',', '.').'.'
+                            : ' ¡Ya está todo abonado! 🎉';
+
+                        // Formatear fecha y horario
+                        $fecha = \Carbon\Carbon::parse($order->event_date)->translatedFormat('l d \d\e F');
+                        $horarioStr = '';
+                        if ($order->start_time) {
+                            $horarioStr = ' a partir de las '.substr($order->start_time, 0, 5).'hs';
+                        }
+
+                        $message = "¡Hola {$matchedClient->name}! 🎂 Te avisamos desde *180° Pastelería* que tu pedido de {$productSummary} ya está *listo para retirar* el {$fecha}{$horarioStr}.{$saldoStr} ¡Te esperamos! 😊";
+
+                        // Limpiar número de teléfono
+                        $phone = preg_replace('/[^0-9]/', '', $matchedClient->phone ?? '');
+                        $phone = ltrim($phone, '0');
+                        // Agregar código de Argentina (+549) si el número es local (≤ 10 dígitos)
+                        if (strlen($phone) <= 10) {
+                            $phone = '549'.$phone;
+                        }
+
+                        $toolResponse = [
+                            'success'     => true,
+                            'phone'       => $phone,
+                            'message'     => $message,
+                            'client_name' => $matchedClient->name,
+                        ];
                     } elseif ($toolName === 'get_orders_by_date') {
                         $orders = Order::with('client', 'items')
                             ->whereDate('event_date', $args['date'])
