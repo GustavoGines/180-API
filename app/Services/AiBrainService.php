@@ -46,6 +46,7 @@ class AiBrainService
             $context .= "- Si usaste get_revenue_by_period: devuelve type 'revenue_card' con data: {'period': 'Facturación', 'revenue': 123456}\n";
             $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}. CRÍTICO: la fecha en 'data.date' SIEMPRE debe ser un día completo en formato YYYY-MM-DD (ej: '2026-07-01'). Si el usuario pide ir a un mes (ej: 'julio', 'agosto 2026'), usa el primer día de ese mes (ej: '2026-07-01'). NUNCA envíes solo 'YYYY-MM'.\n";
             $context .= "- Si usaste generate_dispatch_message: devuelve type 'whatsapp_dispatch_card' con data: {'phone': 'número limpio del cliente', 'message': 'mensaje generado', 'client_name': 'nombre del cliente'}.\n";
+            $context .= "- Si el usuario te pregunta por el catálogo, productos, rellenos o extras disponibles: enuméralos directamente de forma amigable en el campo 'reply' usando saltos de línea (\\n). Usa type null para ui_widget.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
             $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
             $context .= "ERES UNA IA CON CONTROL TOTAL SOBRE LA INTERFAZ. Si el usuario pide ir a una fecha, saltar a un día, o ver el calendario, TIENES QUE usar 'navigate_to_calendar'. NUNCA digas que no puedes hacerlo.";
