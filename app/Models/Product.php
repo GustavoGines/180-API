@@ -15,9 +15,12 @@ class Product extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'allow_half_dozen' => 'boolean',
+        'is_combo' => 'boolean',
         'base_price' => 'decimal:2',
         'half_dozen_price' => 'decimal:2',
         'multiplier_adjustment_per_kg' => 'decimal:2',
+        'available_from' => 'date',
+        'available_until' => 'date',
     ];
 
     public function variants(): HasMany

@@ -33,6 +33,10 @@ class AdminCatalogController extends Controller
             'variants' => 'array',
             'variants.*.variant_name' => 'required|string',
             'variants.*.price' => 'required|numeric',
+            'is_combo' => 'boolean',
+            'campaign_name' => 'nullable|string|max:255',
+            'available_from' => 'nullable|date',
+            'available_until' => 'nullable|date',
         ]);
 
         $result = DB::transaction(function () use ($validated) {
@@ -70,10 +74,22 @@ class AdminCatalogController extends Controller
             'variants.*.id' => 'nullable|integer',
             'variants.*.variant_name' => 'required|string',
             'variants.*.price' => 'required|numeric',
+            'is_combo' => 'boolean',
+            'campaign_name' => 'nullable|string|max:255',
+            'available_from' => 'nullable|date',
+            'available_until' => 'nullable|date',
         ]);
 
         DB::transaction(function () use ($product, $validated) {
             $productData = collect($validated)->except('variants')->toArray();
+
+            // Si se desactiva el combo, limpiar campos relacionados para no dejar basura
+            if (isset($productData['is_combo']) && !$productData['is_combo']) {
+                $productData['campaign_name'] = null;
+                $productData['available_from'] = null;
+                $productData['available_until'] = null;
+            }
+
             $product->update($productData);
 
             // Sync variants solo si el campo viene explícitamente en el request

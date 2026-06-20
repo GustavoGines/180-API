@@ -26,8 +26,15 @@ class CatalogController extends Controller
     public function index()
     {
         $data = Cache::remember(self::CACHE_KEY, self::CACHE_TTL, function () {
-            // 1. Productos activos con sus variantes
+            // 1. Productos activos con sus variantes (respetando vigencia de combos)
+            $today = now()->format('Y-m-d');
             $products = Product::where('is_active', true)
+                ->where(function ($q) use ($today) {
+                    $q->whereNull('available_from')->orWhere('available_from', '<=', $today);
+                })
+                ->where(function ($q) use ($today) {
+                    $q->whereNull('available_until')->orWhere('available_until', '>=', $today);
+                })
                 ->orderBy('name', 'asc')
                 ->with(['variants' => fn ($q) => $q->orderBy('variant_name', 'asc')])
                 ->get();

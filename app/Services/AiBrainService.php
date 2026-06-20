@@ -21,12 +21,33 @@ class AiBrainService
         $todayStr = now()->translatedFormat('l d \d\e F \d\e Y');
         $todayDate = now()->format('Y-m-d');
 
-        $validProducts = Product::pluck('name')->implode(', ');
+        $activeProductsQuery = Product::where('is_active', true)
+            ->where(function ($q) use ($todayDate) {
+                $q->whereNull('available_from')->orWhere('available_from', '<=', $todayDate);
+            })
+            ->where(function ($q) use ($todayDate) {
+                $q->whereNull('available_until')->orWhere('available_until', '>=', $todayDate);
+            })->get();
+
+        $regularProducts = $activeProductsQuery->where('is_combo', false)->pluck('name')->implode(', ');
+        
+        $campaigns = $activeProductsQuery->where('is_combo', true)->groupBy('campaign_name');
+        $campaignsStr = "";
+        foreach ($campaigns as $campaignName => $combos) {
+            $comboNames = $combos->pluck('name')->implode(', ');
+            $cName = $campaignName ?: 'Combos Generales';
+            $campaignsStr .= "[$cName] -> $comboNames. ";
+        }
+        if (empty($campaignsStr)) {
+            $campaignsStr = "Ninguna campaña activa actualmente.";
+        }
+
         $validFillings = Filling::pluck('name')->implode(', ');
         $validExtras = Extra::pluck('name')->implode(', ');
 
         $context = "Eres el asistente inteligente de una pastelería. La fecha y día exacto de hoy es $todayStr (Formato YYYY-MM-DD: $todayDate). Usa esta fecha como ancla estricta para calcular matemáticamente cualquier fecha relativa que pida el usuario (ej: 'este sábado', 'el próximo fin de semana', 'mañana').\n";
-        $context .= "CATÁLOGO DE PRODUCTOS VÁLIDOS: $validProducts\n";
+        $context .= "CATÁLOGO REGULAR DE PRODUCTOS VÁLIDOS: $regularProducts\n";
+        $context .= "CAMPAÑAS Y COMBOS ESPECIALES ACTIVOS HOY: $campaignsStr\n";
         $context .= "RELLENOS VÁLIDOS: $validFillings\n";
         $context .= "EXTRAS VÁLIDOS: $validExtras\n";
         $context .= "CRÍTICO: Si vas a usar 'create_order' o 'update_order', estás OBLIGADO a usar EXACTAMENTE los nombres de productos, rellenos y extras listados arriba. No inventes productos.\n";
@@ -342,7 +363,14 @@ class AiBrainService
     public function parseOrderArguments(array $items): array
     {
         $total = 0;
-        $products = Product::all();
+        $todayDate = now()->format('Y-m-d');
+        $products = Product::where('is_active', true)
+            ->where(function ($q) use ($todayDate) {
+                $q->whereNull('available_from')->orWhere('available_from', '<=', $todayDate);
+            })
+            ->where(function ($q) use ($todayDate) {
+                $q->whereNull('available_until')->orWhere('available_until', '>=', $todayDate);
+            })->get();
         $allFillings = Filling::all();
         $allExtras = Extra::all();
 
