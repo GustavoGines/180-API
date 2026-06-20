@@ -56,6 +56,7 @@ class AiBrainService
         $context .= "2. Para mesa dulce: Si el usuario pide unidades (ej. '12 cupcakes'), envía 'quantity: 12' e 'is_unit_sale: true'. Si pide docenas (ej. '1 docena'), envía 'quantity: 1' e 'is_unit_sale: false'.\n";
 
         if (! $isVoiceAssistant) {
+            $context .= "SEGUNDA FUNCIONALIDAD PRINCIPAL: Si el usuario te pide explícitamente agregar o crear un producto nuevo en el catálogo, usa la herramienta 'draft_catalog_item'. Nunca uses esta herramienta si están pidiendo agendar un pedido de un producto que ya existe.\n";
             $context .= "CRÍTICO - FORMATO DE RESPUESTA: NUNCA uses formato Markdown (asteriscos, guiones, negritas) en el campo 'reply'. El texto plano es obligatorio ya que la app no renderiza Markdown.\n";
             $context .= "IMPORTANTE: Debes responder SIEMPRE con una estructura JSON estricta. El formato debe ser:\n";
             $context .= "{\n  \"reply\": \"Texto amigable para el usuario (SIN Markdown)\",\n  \"ui_widget\": {\n    \"type\": \"order_card\", // o null si es solo charla\n    \"data\": { ... }\n  }\n}\n";
@@ -68,6 +69,7 @@ class AiBrainService
             $context .= "- Si usaste navigate_to_calendar: devuelve type 'navigate_calendar' con data: {'date': 'YYYY-MM-DD'}. CRÍTICO: la fecha en 'data.date' SIEMPRE debe ser un día completo en formato YYYY-MM-DD (ej: '2026-07-01'). Si el usuario pide ir a un mes (ej: 'julio', 'agosto 2026'), usa el primer día de ese mes (ej: '2026-07-01'). NUNCA envíes solo 'YYYY-MM'.\n";
             $context .= "- ⚠️ CRÍTICO generate_dispatch_message: Cuando usaste 'generate_dispatch_message', DEBES OBLIGATORIAMENTE devolver type 'whatsapp_dispatch_card'. NUNCA devuelvas order_card ni text plano. El data DEBE ser EXACTAMENTE: {'phone': valor_de_phone_que_te_devolvio_la_herramienta, 'message': valor_de_message_que_te_devolvio_la_herramienta, 'client_name': valor_de_client_name_que_te_devolvio_la_herramienta}. El campo 'reply' debe ser solo: 'Aquí tienes el mensaje listo para enviar por WhatsApp.'\n";
             $context .= "- Si usaste bulk_mark_paid: devuelve type 'bulk_payment_result' con data: {'affected': N, 'total_amount': 123456, 'filter_description': 'descripción amigable de los filtros aplicados'}.\n";
+            $context .= "- Si usaste draft_catalog_item: DEBES devolver type 'draft_product_card' e inyectar TODO el payload que te devolvió la herramienta en el campo 'data'. Ejemplo: {'type': 'draft_product_card', 'data': {'name': '...', 'category': '...', 'base_price': 1000}}.\n";
             $context .= "- Si el usuario te pregunta por el catálogo, productos, rellenos o extras disponibles: enuméralos directamente de forma amigable en el campo 'reply' usando saltos de línea (\\n). Usa type null para ui_widget.\n";
             $context .= "Si la conversación es casual, usa type null.\n";
             $context .= "Si el usuario dice 'Juan dejó 5000 de seña', o registra un pago/seña de un cliente, debes usar la herramienta 'register_payment'.\n";
@@ -76,7 +78,7 @@ class AiBrainService
             $context .= "ERES UNA IA CON CONTROL TOTAL SOBRE LA INTERFAZ. Si el usuario pide ir a una fecha, saltar a un día, o ver el calendario, TIENES QUE usar 'navigate_to_calendar'. NUNCA digas que no puedes hacerlo.";
         } else {
             // Instrucciones extra específicas para el modo Extracción pura (Voz)
-            $context .= "Tu tarea es ÚNICAMENTE extraer la información del texto provisto por el usuario y llamar a la herramienta adecuada ('create_order'). No debes generar ninguna respuesta amigable, solo usar Tool Calling.";
+            $context .= "Tu tarea es ÚNICAMENTE extraer la información del texto provisto por el usuario y llamar a la herramienta adecuada ('create_order' o 'draft_catalog_item'). Si el usuario pide explícitamente crear un producto nuevo al catálogo, usa 'draft_catalog_item'. No debes generar ninguna respuesta amigable, solo usar Tool Calling.";
         }
 
         return $context;
@@ -331,6 +333,28 @@ class AiBrainService
                             'status'      => ['type' => 'string', 'description' => 'Opcional. Filtrar por estado: "delivered", "completed" o "ready". Solo afecta pedidos en ese estado.'],
                         ],
                         'required' => [],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'draft_catalog_item',
+                    'description' => 'Prepara la información para crear un nuevo producto o combo en el catálogo. Úsalo SOLO cuando el usuario indique explícitamente "crear un producto nuevo", "agregar al catálogo", "nuevo box".',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'name' => ['type' => 'string', 'description' => 'El nombre del producto a crear.'],
+                            'description' => ['type' => 'string', 'description' => 'Descripción opcional del producto.'],
+                            'category' => ['type' => 'string', 'enum' => ['torta', 'mesaDulce', 'box'], 'description' => 'Categoría del producto. Infiere esto en base al nombre o unidades. Si es por kilo es torta, si es por docenas/unidades es mesaDulce, si es un box de desayuno/picada es box.'],
+                            'base_price' => ['type' => 'number', 'description' => 'El precio base del producto. Extraerlo del audio/texto.'],
+                            'unit_type' => ['type' => 'string', 'enum' => ['unit', 'kilo', 'dozen', 'size12cm', 'size14cm', 'size16cm', 'size18cm', 'size20cm', 'size22cm', 'size24cm', 'size26cm'], 'description' => 'La unidad de medida.'],
+                            'is_combo' => ['type' => 'boolean', 'description' => 'True si el usuario menciona que es para una fecha especial, evento o un "combo".'],
+                            'campaign_name' => ['type' => 'string', 'description' => 'El nombre de la campaña o festividad (ej. "Día del Padre", "San Valentín"). Solo si is_combo es true.'],
+                            'available_from' => ['type' => 'string', 'description' => 'Fecha de inicio de vigencia en formato YYYY-MM-DD. Opcional.'],
+                            'available_until' => ['type' => 'string', 'description' => 'Fecha de fin de vigencia en formato YYYY-MM-DD. Opcional.'],
+                        ],
+                        'required' => ['name', 'category', 'base_price', 'unit_type'],
                     ],
                 ],
             ],
