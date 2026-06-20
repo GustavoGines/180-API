@@ -348,7 +348,7 @@ class AiBrainService
                             'description' => ['type' => 'string', 'description' => 'Descripción opcional del producto.'],
                             'category' => ['type' => 'string', 'enum' => ['torta', 'mesaDulce', 'box'], 'description' => 'Categoría del producto. Infiere esto en base al nombre o unidades. Si es por kilo es torta, si es por docenas/unidades es mesaDulce, si es un box de desayuno/picada es box.'],
                             'base_price' => ['type' => 'number', 'description' => 'El precio base del producto. Extraerlo del audio/texto.'],
-                            'unit_type' => ['type' => 'string', 'enum' => ['unit', 'kilo', 'dozen', 'size12cm', 'size14cm', 'size16cm', 'size18cm', 'size20cm', 'size22cm', 'size24cm', 'size26cm'], 'description' => 'La unidad de medida.'],
+                            'unit_type' => ['type' => 'string', 'enum' => ['unit', 'kg', 'dozen', 'halfDozen', 'size12cm', 'size18cm', 'size20cm', 'size24cm'], 'description' => 'La unidad de medida. IMPORTANTE: Usa "kg" en lugar de "kilo".'],
                             'is_combo' => ['type' => 'boolean', 'description' => 'True si el usuario menciona que es para una fecha especial, evento o un "combo".'],
                             'campaign_name' => ['type' => 'string', 'description' => 'El nombre de la campaña o festividad (ej. "Día del Padre", "San Valentín"). Solo si is_combo es true.'],
                             'available_from' => ['type' => 'string', 'description' => 'Fecha de inicio de vigencia en formato YYYY-MM-DD. Opcional.'],
