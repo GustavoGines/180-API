@@ -20,6 +20,7 @@ class SendTodayOrderNotifications extends Command
     public function __construct()
     {
         parent::__construct();
+        $this->messaging = app('firebase.messaging');
     }
 
     public function handle()
