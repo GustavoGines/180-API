@@ -20,11 +20,11 @@ class SendTomorrowOrderNotifications extends Command
     public function __construct()
     {
         parent::__construct();
-        $this->messaging = app('firebase.messaging');
     }
 
     public function handle()
     {
+        $this->messaging = app('firebase.messaging');
         // Redondea la hora actual HACIA ABAJO al múltiplo de 5 más cercano
         $baseTime = now()->floorMinutes(5);
 

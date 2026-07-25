@@ -20,11 +20,11 @@ class SendTodayOrderNotifications extends Command
     public function __construct()
     {
         parent::__construct();
-        $this->messaging = app('firebase.messaging');
     }
 
     public function handle()
     {
+        $this->messaging = app('firebase.messaging');
         // 1. Obtener la fecha de HOY (usando la zona horaria configurada en app.php)
         $today = now()->toDateString();
         $this->info("Buscando todos los pedidos para HOY ($today)...");
