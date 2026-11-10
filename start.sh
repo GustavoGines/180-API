@@ -48,10 +48,11 @@ else
   echo "WARN: No FIREBASE_CREDENTIALS env var found. Firebase SDK no disponible."
 fi
 
-# APP_KEY (si no viene por env)
+# APP_KEY es obligatoria: una clave efímera invalidaría sesiones y datos cifrados
+# en cada reinicio del contenedor.
 if [ -z "${APP_KEY:-}" ]; then
-  echo "No APP_KEY env; generating ephemeral key..."
-  export APP_KEY="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
+  echo "ERROR: APP_KEY no está definida. Configurala como variable de entorno."
+  exit 1
 fi
 
 # Caches tolerantes

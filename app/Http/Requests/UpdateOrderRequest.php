@@ -45,8 +45,10 @@ class UpdateOrderRequest extends FormRequest
                 }),
             ],
             'event_date' => ['required', 'date_format:Y-m-d'],
-            'start_time' => ['required', 'date_format:H:i'], // Controller dice required
-            'end_time' => ['required', 'date_format:H:i'],   // Controller dice required
+            'start_time' => ['nullable', 'date_format:H:i'],
+            'end_time' => ['nullable', 'date_format:H:i'],
+            'files' => ['nullable', 'array'],
+            'files.*' => ['nullable', 'file', 'image', 'max:10240'],
 
             'status' => ['nullable', 'string', 'in:pending,confirmed,ready,delivered,canceled'],
             'is_paid' => ['nullable', 'boolean'],

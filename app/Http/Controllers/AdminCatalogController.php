@@ -50,7 +50,7 @@ class AdminCatalogController extends Controller
             return response()->json(['message' => 'Product created', 'data' => new ProductResource($product->load('variants'))], 201);
         });
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return $result;
     }
@@ -120,7 +120,7 @@ class AdminCatalogController extends Controller
             } // Si 'variants' no viene en el request, no se tocan las variantes existentes.
         });
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Product updated', 'data' => new ProductResource($product->load('variants'))]);
     }
@@ -131,7 +131,7 @@ class AdminCatalogController extends Controller
 
         Product::findOrFail($id)->delete();
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Product deleted']);
     }
@@ -150,7 +150,7 @@ class AdminCatalogController extends Controller
 
         $filling = Filling::create($validated);
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Filling created', 'data' => new FillingResource($filling)], 201);
     }
@@ -169,7 +169,7 @@ class AdminCatalogController extends Controller
 
         $filling->update($validated);
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Filling updated', 'data' => new FillingResource($filling)]);
     }
@@ -180,7 +180,7 @@ class AdminCatalogController extends Controller
 
         Filling::findOrFail($id)->delete();
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Filling deleted']);
     }
@@ -199,7 +199,7 @@ class AdminCatalogController extends Controller
 
         $extra = Extra::create($validated);
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Extra created', 'data' => new ExtraResource($extra)], 201);
     }
@@ -218,7 +218,7 @@ class AdminCatalogController extends Controller
 
         $extra->update($validated);
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Extra updated', 'data' => new ExtraResource($extra)]);
     }
@@ -229,7 +229,7 @@ class AdminCatalogController extends Controller
 
         Extra::findOrFail($id)->delete();
 
-        Cache::forget(CatalogController::CACHE_KEY);
+        CatalogController::clearAllCatalogCaches();
 
         return response()->json(['message' => 'Extra deleted']);
     }

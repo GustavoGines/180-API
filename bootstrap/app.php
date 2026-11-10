@@ -59,6 +59,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 if (config('app.debug') && $statusCode >= 500) {
                     $response['trace'] = $e->getTrace();
+                } elseif ($statusCode >= 500) {
+                    // En producción no exponer mensajes internos (SQL, rutas, etc.)
+                    $response['message'] = 'Error interno del servidor.';
                 }
 
                 return response()->json($response, $statusCode);

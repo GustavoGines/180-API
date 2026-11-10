@@ -94,9 +94,12 @@ class GoogleCalendarService
 
     private function buildEventFromOrder(Order $order): Event
     {
-        // Garantiza cliente cargado
-        $order->loadMissing('client');
+        // Garantiza cliente y dirección cargados
+        $order->loadMissing(['client', 'clientAddress']);
         $client = $order->client;
+        $address = $order->clientAddress?->address_line_1
+            ?? $order->clientAddress?->google_maps_url
+            ?? '-';
 
         // Toma horas (si faltan, defaults amigables)
         $startH = $order->start_time ? (is_string($order->start_time) ? $order->start_time : $order->start_time->format('H:i')) : '10:00';
@@ -113,7 +116,7 @@ class GoogleCalendarService
         $description = trim(
             'Cliente: '.($client->name ?? '-')."\n".
             'Tel: '.($client->phone ?? '-')."\n".
-            'Dirección: '.($client->address ?? '-')."\n".
+            'Dirección: '.$address."\n".
             'Notas: '.($order->notes ?? '-')."\n".
             'Total: $ '.number_format((float) $order->total, 2, ',', '.')
         );

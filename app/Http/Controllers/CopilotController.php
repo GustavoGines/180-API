@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderCreated;
+use App\Events\OrderUpdated;
 use App\Models\Client;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -139,6 +141,7 @@ class CopilotController extends Controller
                                 ]);
                             }
                             DB::commit();
+                            DB::afterCommit(fn () => OrderCreated::dispatch($order));
                             $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
                         } catch (\Exception $e) {
                             DB::rollBack();
@@ -189,17 +192,18 @@ class CopilotController extends Controller
                                     ]);
                                 }
 
-                                // Recalcular total
-                                $newTotal = OrderItem::where('order_id', $order->id)
+                                // Recalcular total preservando el costo de envío
+                                $newItemsTotal = OrderItem::where('order_id', $order->id)
                                     ->get()
                                     ->sum(function ($i) {
                                         return $i->base_price * $i->qty;
                                     });
 
-                                $order->total = $newTotal;
+                                $order->total = $newItemsTotal + (float) ($order->delivery_cost ?? 0);
                                 $order->save();
                             }
                             DB::commit();
+                            DB::afterCommit(fn () => OrderUpdated::dispatch($order));
                             $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
                         } catch (\Exception $e) {
                             DB::rollBack();
@@ -248,6 +252,7 @@ class CopilotController extends Controller
                             $order->save();
                             
                             DB::commit();
+                            DB::afterCommit(fn () => OrderUpdated::dispatch($order));
                             $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
                         } catch (\Exception $e) {
                             DB::rollBack();
@@ -370,6 +375,7 @@ class CopilotController extends Controller
                                 $order->deposit = $order->total;
                                 $order->is_paid = true;
                                 $order->save();
+                                OrderUpdated::dispatch($order);
                             });
 
                             // Armar descripción amigable del filtro

@@ -105,9 +105,9 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     /**
      * Elimina un token de dispositivo (FCM) específico
-     * perteneciente al usuario autenticado.
+     * perteneciente al usuario autenticado. Acepta POST y DELETE para compatibilidad con Flutter.
      */
-    Route::delete('/devices/unregister', function (Request $request) {
+    Route::match(['post', 'delete'], '/devices/unregister', function (Request $request) {
 
         // 1. Validar que nos enviaron el token
         $request->validate([
@@ -162,4 +162,6 @@ Route::get('/ping', function () {
     return response()->json(['status' => 'ok']);
 });
 
-require __DIR__.'/auth.php';
+// Prefijo "api." para evitar nombres de ruta duplicados con web.php
+// (los nombres duplicados hacen fallar `php artisan route:cache`).
+Route::name('api.')->group(__DIR__.'/auth.php');

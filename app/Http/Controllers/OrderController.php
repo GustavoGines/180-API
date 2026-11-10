@@ -266,6 +266,7 @@ class OrderController extends Controller
             'time' => 'nullable|date_format:H:i',
         ]);
 
+        $hasExplicitTime = $request->filled('time');
         $dateStr = $request->query('date');
         $timeStr = $request->query('time', '12:00'); // Hora por defecto si no envían
 
@@ -274,13 +275,23 @@ class OrderController extends Controller
         $now = \Carbon\Carbon::now();
         $hoursDifference = $now->diffInHours($requestedDateTime, false);
 
-        // Regla 0: Fecha Pasada
-        // Si el pedido es para el pasado, lo rechazamos por obvias razones
+        // Regla 0: Fecha u Hora Pasada
+        // A) Si la fecha ya pasó (días anteriores)
         if ($hoursDifference < 0 && ! $requestedDate->isToday()) {
             return response()->json([
                 'available' => false,
                 'reason' => 'past_date',
                 'message' => 'La fecha solicitada ya pasó.',
+                'express_review_needed' => false,
+            ]);
+        }
+
+        // B) Si es hoy y el usuario especificó una hora que ya pasó
+        if ($requestedDate->isToday() && $hasExplicitTime && $requestedDateTime->isPast()) {
+            return response()->json([
+                'available' => false,
+                'reason' => 'past_date',
+                'message' => 'El horario solicitado para hoy ya pasó.',
                 'express_review_needed' => false,
             ]);
         }
@@ -376,6 +387,8 @@ class OrderController extends Controller
      */
     public function updateFromBot(UpdateBotOrderRequest $request, Order $order, BotOrderService $botService)
     {
+        $this->authorize('manage', $order);
+
         $validated = $request->validated();
 
         $updatedOrder = DB::transaction(function () use ($validated, $order, $botService) {

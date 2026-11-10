@@ -40,13 +40,17 @@ class StoreOrderRequest extends FormRequest
                 'integer',
 
                 // PERO: Si el campo 'delivery_cost' es mayor que 0, entonces SÍ es requerido.
-                'required_if:delivery_cost,>0',
+                Rule::requiredIf(function () {
+                    return ((float) $this->input('delivery_cost') ?? 0) > 0;
+                }),
 
                 // Regla de existencia (se mantiene)
                 Rule::exists('client_addresses', 'id')->where(function ($query) {
                     return $query->where('client_id', $this->input('client_id'));
                 }),
             ],
+            'files' => ['nullable', 'array'],
+            'files.*' => ['nullable', 'file', 'image', 'max:10240'],
             'event_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],

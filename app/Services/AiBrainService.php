@@ -552,8 +552,10 @@ class AiBrainService
             $payload['tools'] = $tools;
         }
 
-        $response = Http::withoutVerifying()
-            ->withToken(env('OPENAI_API_KEY'))
+        $http = app()->isProduction() ? Http::timeout(60) : Http::withoutVerifying()->timeout(60);
+
+        $response = $http
+            ->withToken(config('services.openai.api_key'))
             ->post('https://api.openai.com/v1/chat/completions', $payload);
 
         return $response->json();

@@ -138,7 +138,7 @@ class AnalyticsController extends Controller
             SELECT
                 oi.name,
                 SUM(oi.qty)                                              AS total_qty,
-                SUM(oi.qty * (oi.base_price + oi.adjustments))          AS revenue
+                SUM(oi.qty * (oi.base_price + COALESCE(oi.adjustments, 0))) AS revenue
             FROM orders o
             INNER JOIN order_items oi ON oi.order_id = o.id
             WHERE

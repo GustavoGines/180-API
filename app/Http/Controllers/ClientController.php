@@ -174,7 +174,7 @@ class ClientController extends Controller
             return response()->json(['message' => 'Cliente no encontrado'], Response::HTTP_NOT_FOUND);
         }
 
-        if ($client->orders()->exists()) {
+        if ($client->orders()->withTrashed()->exists()) {
             return response()->json([
                 'message' => '¡Conflicto! Este cliente tiene pedidos asociados y no puede ser eliminado permanentemente.',
             ], Response::HTTP_CONFLICT);

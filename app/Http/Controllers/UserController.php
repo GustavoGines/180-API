@@ -67,6 +67,14 @@ class UserController extends Controller
             'password' => Hash::make($validated['new_password'])
         ]);
 
+        // Revocar tokens previos excepto la sesión actual (si es token Bearer)
+        $currentTokenId = $user->currentAccessToken()?->id;
+        if ($currentTokenId) {
+            $user->tokens()->where('id', '!=', $currentTokenId)->delete();
+        } else {
+            $user->tokens()->delete();
+        }
+
         return response()->json(['message' => 'Contraseña actualizada correctamente']);
     }
 
@@ -125,6 +133,21 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        if ($user->id === auth()->id()) {
+            return response()->json([
+                'message' => 'No puedes eliminar tu propia cuenta de administrador.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($user->role === 'admin') {
+            $remainingAdmins = User::where('role', 'admin')->whereNull('deleted_at')->where('id', '!=', $user->id)->count();
+            if ($remainingAdmins === 0) {
+                return response()->json([
+                    'message' => 'No puedes eliminar al único administrador activo del sistema.',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
         $user->delete();
 
         return response()->noContent();

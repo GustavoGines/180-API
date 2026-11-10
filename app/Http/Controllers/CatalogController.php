@@ -19,6 +19,17 @@ class CatalogController extends Controller
     public const CACHE_KEY = 'catalog_v1';
 
     /**
+     * Invalida todas las claves de caché del catálogo (API pública + BotOrderService).
+     */
+    public static function clearAllCatalogCaches(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+        Cache::forget('catalog.products');
+        Cache::forget('catalog.fillings');
+        Cache::forget('catalog.extras');
+    }
+
+    /**
      * TTL del caché en segundos (1 hora).
      */
     private const CACHE_TTL = 3600;

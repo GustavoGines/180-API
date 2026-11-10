@@ -41,7 +41,10 @@ class AppServiceProvider extends ServiceProvider
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             $frontendUrl = config('services.frontend_url', 'http://localhost:3000');
 
-            return $frontendUrl.'?email='.$notifiable->getEmailForPasswordReset().'&token='.$token;
+            return $frontendUrl.'?'.http_build_query([
+                'email' => $notifiable->getEmailForPasswordReset(),
+                'token' => $token,
+            ]);
         });
 
         Gate::define('admin', function (User $user) {

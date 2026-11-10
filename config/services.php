@@ -48,6 +48,10 @@ return [
         'credentials_path' => env('GOOGLE_APP_CREDENTIALS_PATH'),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
 ];

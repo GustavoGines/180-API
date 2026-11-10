@@ -65,7 +65,8 @@ class SendTodayOrderNotifications extends Command
             }
 
             $title = '¡Pedidos para HOY!';
-            $body = "Hoy tenés el pedido de {$order->client->name} a las {$order->start_time->format('H:i')}hs.";
+            $horaStr = $order->start_time ? " a las {$order->start_time->format('H:i')}hs" : '';
+            $body = "Hoy tenés el pedido de {$order->client->name}{$horaStr}.";
 
             foreach ($adminAndStaffTokens as $fcmToken) {
                 Log::info("Notificando (HOY) token {$fcmToken} para Pedido #{$order->id}");

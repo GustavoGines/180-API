@@ -130,10 +130,12 @@ class AiAssistantController extends Controller
 
     private function transcribeAudio($file)
     {
-        $clients = \App\Models\Client::pluck('name')->implode(', ');
+        $clients = \App\Models\Client::latest('updated_at')->limit(30)->pluck('name')->implode(', ');
 
-        $response = Http::withoutVerifying()
-            ->withToken(env('OPENAI_API_KEY'))
+        $http = app()->isProduction() ? Http::timeout(60) : Http::withoutVerifying()->timeout(60);
+
+        $response = $http
+            ->withToken(config('services.openai.api_key'))
             ->attach('file', file_get_contents($file->getRealPath()), $file->getClientOriginalName())
             ->post('https://api.openai.com/v1/audio/transcriptions', [
                 'model' => 'whisper-1',
