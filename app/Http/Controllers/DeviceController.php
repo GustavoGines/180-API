@@ -19,6 +19,11 @@ class DeviceController extends Controller
             'platform' => ['nullable', 'in:android,ios,web,unknown'],
         ]);
 
+        // Desvincular token de dispositivos previos de otros usuarios
+        Device::where('fcm_token', $validated['fcm_token'])
+            ->where('user_id', '!=', $request->user()->id)
+            ->delete();
+
         $device = Device::updateOrCreate(
             [
                 'user_id' => $request->user()->id,

@@ -48,4 +48,31 @@ class StoreBotOrderRequest extends FormRequest
             'bot_items.*.customization_notes' => 'nullable|string',
         ];
     }
+
+    public function withValidator($validator)
+    {
+        $validator->after(function ($validator) {
+            $dateStr = $this->input('event_date');
+            if ($dateStr) {
+                try {
+                    $requestedDate = \Carbon\Carbon::parse($dateStr);
+                    $closedDays = explode(',', config('shop.closed_days', '2'));
+                    if (in_array((string) $requestedDate->dayOfWeekIso, $closedDays)) {
+                        $validator->errors()->add('event_date', 'El local se encuentra cerrado este día.');
+                    }
+
+                    $dailyCapacity = config("shop.special_capacities.{$dateStr}", config('shop.default_daily_capacity', 10));
+                    $ordersCount = \App\Models\Order::whereDate('event_date', $dateStr)
+                        ->whereIn('status', ['draft', 'confirmed', 'ready'])
+                        ->count();
+
+                    if ($ordersCount >= $dailyCapacity) {
+                        $validator->errors()->add('event_date', 'Cupo lleno para este día.');
+                    }
+                } catch (\Throwable $e) {
+                    // Si el formato de fecha no es parseable, date_format lo capturará
+                }
+            }
+        });
+    }
 }

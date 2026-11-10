@@ -35,3 +35,4 @@ composer.phar
 database/dump-*.sql
 # Scripts de depuracion manuales en la raiz
 /test*.php
+/.agents/

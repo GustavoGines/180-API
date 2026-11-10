@@ -205,9 +205,11 @@ class ClientController extends Controller
             return '+'.$normalized;
         }
 
-        if (str_starts_with($normalized, '0') || str_starts_with($normalized, '15')) {
-            $normalized = ltrim($normalized, '0');
-            $normalized = ltrim($normalized, '15');
+        if (str_starts_with($normalized, '0')) {
+            $normalized = substr($normalized, 1);
+        }
+        if (str_starts_with($normalized, '15')) {
+            $normalized = substr($normalized, 2);
         }
 
         if (strlen($normalized) >= 10 && strlen($normalized) <= 12 && ! str_starts_with($normalized, '54')) {

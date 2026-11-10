@@ -18,7 +18,7 @@ class AiAssistantController extends Controller
     public function processVoice(Request $request)
     {
         $request->validate([
-            'audio' => 'required|file|mimes:m4a,mp3,wav,ogg,mp4,webm',
+            'audio' => 'required|file|mimes:m4a,mp3,wav,ogg,mp4,webm|max:25600',
         ]);
 
         try {
@@ -136,7 +136,7 @@ class AiAssistantController extends Controller
 
         $response = $http
             ->withToken(config('services.openai.api_key'))
-            ->attach('file', file_get_contents($file->getRealPath()), $file->getClientOriginalName())
+            ->attach('file', fopen($file->getRealPath(), 'r'), $file->getClientOriginalName())
             ->post('https://api.openai.com/v1/audio/transcriptions', [
                 'model' => 'whisper-1',
                 'language' => 'es',

@@ -65,8 +65,8 @@ class AnalyticsController extends Controller
         // Filtramos primero por (year, month) usando el índice de event_date.
         $result = DB::selectOne("
             SELECT
-                COALESCE(SUM(total) FILTER (WHERE status != 'canceled' AND is_paid = true),  0) AS ingreso_realizado,
-                COALESCE(SUM(total) FILTER (WHERE status != 'canceled' AND is_paid = false), 0) AS ingreso_pendiente,
+                COALESCE(SUM(COALESCE(deposit, 0)) FILTER (WHERE status != 'canceled'),  0) AS ingreso_realizado,
+                COALESCE(SUM(GREATEST(0, COALESCE(total, 0) - COALESCE(deposit, 0))) FILTER (WHERE status != 'canceled' AND is_paid = false), 0) AS ingreso_pendiente,
                 COUNT(*) FILTER (WHERE status != 'canceled')                                   AS total_pedidos
             FROM orders
             WHERE

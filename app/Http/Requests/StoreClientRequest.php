@@ -36,13 +36,13 @@ class StoreClientRequest extends FormRequest
                 // 3. Regla unique:
                 // "Debe ser único en la tabla 'clients',
                 //  PERO ignora el ID del cliente que estamos actualizando"
-                Rule::unique('clients')->ignore($client?->id),
+                Rule::unique('clients')->ignore($client?->id)->withoutTrashed(),
             ],
 
             'email' => [
                 'nullable',
                 'email',
-                Rule::unique('clients')->ignore($client?->id),
+                Rule::unique('clients')->ignore($client?->id)->withoutTrashed(),
             ],
 
             'ig_handle' => ['nullable', 'string', 'max:80'],

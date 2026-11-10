@@ -163,4 +163,25 @@ class ClientControllerTest extends TestCase
             ->assertJsonPath('data.whatsapp_url', 'https://wa.me/5493704123456')
             ->assertJsonMissing(['address']); // campo eliminado en B2
     }
+
+    /** @test */
+    public function test_normalizacion_de_telefono_no_mutila_codigo_de_area_11()
+    {
+        $controller = new \App\Http\Controllers\ClientController();
+        $reflection = new \ReflectionClass($controller);
+        $method = $reflection->getMethod('normalizePhone');
+        $method->setAccessible(true);
+
+        // Número con 011 (Buenos Aires)
+        $normalized = $method->invoke($controller, '011 4567-8901');
+        $this->assertEquals('+5491145678901', $normalized);
+
+        // Número con 15 (móvil)
+        $normalized15 = $method->invoke($controller, '15 11 4567-8901');
+        $this->assertEquals('+5491145678901', $normalized15);
+
+        // Número con 0341 (Rosario)
+        $normalizedRosario = $method->invoke($controller, '0341 456-7890');
+        $this->assertEquals('+5493414567890', $normalizedRosario);
+    }
 }

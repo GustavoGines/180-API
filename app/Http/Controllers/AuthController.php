@@ -30,4 +30,14 @@ class AuthController extends Controller
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ]);
     }
+
+    /**
+     * Revoca el token Sanctum actual del usuario.
+     */
+    public function logout(Request $request)
+    {
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->noContent();
+    }
 }

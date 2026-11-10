@@ -33,3 +33,14 @@ test('los usuarios pueden cerrar sesión', function () {
     $this->assertGuest();
     $response->assertNoContent();
 });
+
+test('los usuarios de la API pueden revocar su token de Sanctum con logout', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('test-device')->plainTextToken;
+
+    $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+        ->postJson('/api/logout');
+
+    $response->assertNoContent();
+    expect($user->tokens()->count())->toBe(0);
+});

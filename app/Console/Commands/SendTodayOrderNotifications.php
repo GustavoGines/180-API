@@ -24,6 +24,14 @@ class SendTodayOrderNotifications extends Command
 
     public function handle()
     {
+        try {
+            $this->messaging = app('firebase.messaging');
+        } catch (\Throwable $e) {
+            Log::error('Firebase Messaging no disponible: ' . $e->getMessage());
+            $this->error('Firebase Messaging no disponible: ' . $e->getMessage());
+            return 1;
+        }
+
         // 1. Obtener la fecha de HOY (usando la zona horaria configurada en app.php)
         $today = now()->toDateString();
         $this->info("Buscando todos los pedidos para HOY ($today)...");
@@ -100,7 +108,7 @@ class SendTodayOrderNotifications extends Command
         } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
             Log::warning("Token FCM no encontrado, se debería borrar: {$fcmToken}");
             Device::where('fcm_token', $fcmToken)->delete();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Error genérico al enviar FCM a token {$fcmToken}: ".$e->getMessage());
         }
     }

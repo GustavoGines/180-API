@@ -95,7 +95,7 @@ class OrderController extends Controller
         // incluso si este método es llamado dentro de una transacción superior.
         DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
-        return new OrderResource($order->load(['client', 'items']));
+        return new OrderResource($order->load(['client', 'items', 'clientAddress']));
     }
 
     public function show(Order $order)
@@ -156,7 +156,7 @@ class OrderController extends Controller
 
         DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
-        return new OrderResource($updatedOrder->load(['client', 'items']));
+        return new OrderResource($updatedOrder->load(['client', 'items', 'clientAddress']));
     }
 
     public function updateStatus(Request $request, Order $order)
@@ -196,7 +196,7 @@ class OrderController extends Controller
             DB::afterCommit(fn () => OrderUpdated::dispatch($order));
         }
 
-        return new OrderResource($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items', 'clientAddress']));
     }
 
     public function markAsPaid(Request $request, Order $order)
@@ -215,7 +215,7 @@ class OrderController extends Controller
 
         DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
-        return new OrderResource($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items', 'clientAddress']));
     }
 
     public function markAsUnpaid(Request $request, Order $order)
@@ -232,7 +232,7 @@ class OrderController extends Controller
 
         DB::afterCommit(fn () => OrderUpdated::dispatch($order));
 
-        return new OrderResource($order->fresh(['client', 'items']));
+        return new OrderResource($order->fresh(['client', 'items', 'clientAddress']));
     }
 
     public function destroy(Order $order)
@@ -379,7 +379,7 @@ class OrderController extends Controller
 
         DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
-        return new OrderResource($order->load(['client', 'items']));
+        return new OrderResource($order->load(['client', 'items', 'clientAddress']));
     }
 
     /**
@@ -426,6 +426,6 @@ class OrderController extends Controller
 
         DB::afterCommit(fn () => OrderUpdated::dispatch($updatedOrder));
 
-        return new OrderResource($updatedOrder->load(['client', 'items']));
+        return new OrderResource($updatedOrder->load(['client', 'items', 'clientAddress']));
     }
 }

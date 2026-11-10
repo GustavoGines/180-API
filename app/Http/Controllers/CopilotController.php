@@ -29,11 +29,25 @@ class CopilotController extends Controller
             return response()->json(['error' => 'Se requiere un array de mensajes.'], 400);
         }
 
+        $sanitizedMessages = [];
+        foreach ($inputMessages as $msg) {
+            if (is_array($msg) && isset($msg['role'], $msg['content']) && in_array($msg['role'], ['user', 'assistant'])) {
+                $sanitizedMessages[] = [
+                    'role' => $msg['role'],
+                    'content' => (string) $msg['content'],
+                ];
+            }
+        }
+
+        if (empty($sanitizedMessages)) {
+            return response()->json(['error' => 'Se requiere al menos un mensaje válido.'], 400);
+        }
+
         $messages = [
             ['role' => 'system', 'content' => $this->brainService->getSystemPrompt(false)],
         ];
 
-        $messages = array_merge($messages, $inputMessages);
+        $messages = array_merge($messages, $sanitizedMessages);
         $tools = $this->brainService->getTools();
 
         // Primera llamada a OpenAI
@@ -54,6 +68,9 @@ class CopilotController extends Controller
             foreach ($responseMessage['tool_calls'] as $toolCall) {
                 $toolName = $toolCall['function']['name'];
                 $args = json_decode($toolCall['function']['arguments'], true);
+                if (! is_array($args)) {
+                    $args = [];
+                }
 
                 $toolResponse = [];
 
@@ -196,7 +213,7 @@ class CopilotController extends Controller
                                 $newItemsTotal = OrderItem::where('order_id', $order->id)
                                     ->get()
                                     ->sum(function ($i) {
-                                        return $i->base_price * $i->qty;
+                                        return ($i->base_price + (float) ($i->adjustments ?? 0)) * $i->qty;
                                     });
 
                                 $order->total = $newItemsTotal + (float) ($order->delivery_cost ?? 0);
@@ -204,7 +221,7 @@ class CopilotController extends Controller
                             }
                             DB::commit();
                             DB::afterCommit(fn () => OrderUpdated::dispatch($order));
-                            $toolResponse = ['success' => true, 'order' => $order->load('client', 'items')];
+                            $toolResponse = ['success' => true, 'order' => $order->load('client', 'items', 'clientAddress')];
                         } catch (\Exception $e) {
                             DB::rollBack();
                             throw $e;
@@ -370,12 +387,14 @@ class CopilotController extends Controller
                                 'message'            => 'No se encontraron pedidos impagos con esos filtros.',
                             ];
                         } else {
-                            // Ejecutar de forma segura con ->each() para respetar deposit=total por pedido
-                            $query->each(function ($order) {
-                                $order->deposit = $order->total;
-                                $order->is_paid = true;
-                                $order->save();
-                                OrderUpdated::dispatch($order);
+                            // Ejecutar dentro de una transacción atómica con ->each()
+                            DB::transaction(function () use ($query) {
+                                $query->each(function ($order) {
+                                    $order->deposit = $order->total;
+                                    $order->is_paid = true;
+                                    $order->save();
+                                    OrderUpdated::dispatch($order);
+                                });
                             });
 
                             // Armar descripción amigable del filtro
@@ -425,12 +444,14 @@ class CopilotController extends Controller
                         $summary = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
                             ->whereBetween('orders.event_date', [$args['start_date'], $args['end_date']])
                             ->whereNull('orders.deleted_at')
+                            ->where('orders.status', '!=', 'canceled')
                             ->select('order_items.name', DB::raw('SUM(order_items.qty) as total_quantity'))
                             ->groupBy('order_items.name')
                             ->get();
                         $toolResponse = ['success' => true, 'summary' => $summary];
                     } elseif ($toolName === 'get_revenue_by_period') {
                         $revenue = Order::whereBetween('event_date', [$args['start_date'], $args['end_date']])
+                            ->where('status', '!=', 'canceled')
                             ->sum('total');
                         $toolResponse = ['success' => true, 'revenue' => (float) $revenue];
                     } elseif ($toolName === 'navigate_to_calendar') {

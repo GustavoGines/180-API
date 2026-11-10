@@ -15,6 +15,10 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    public $tries = 3;
+
+    public $backoff = [30, 120, 300];
+
     public function __construct(private GoogleCalendarService $service) {}
 
     /**
@@ -33,8 +37,9 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
             // Nota: Al ser async, esto ocurrirá después de que la respuesta HTTP se haya enviado.
             $order->google_event_id = $googleEventId;
             $order->saveQuietly(); // Evitar disparar eventos de 'updated' recursivamente si observamos 'saved'
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Error async Google Calendar (Create) Order {$event->order->id}: ".$e->getMessage());
+            throw $e;
         }
     }
 
@@ -48,8 +53,9 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
             $order->loadMissing(['client', 'items']);
 
             $this->service->updateFromOrder($order);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Error async Google Calendar (Update) Order {$event->order->id}: ".$e->getMessage());
+            throw $e;
         }
     }
 
@@ -64,8 +70,9 @@ class SyncOrderToGoogleCalendar implements ShouldQueue
 
         try {
             $this->service->deleteEvent($event->googleEventId);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Error async Google Calendar (Delete) Event {$event->googleEventId}: ".$e->getMessage());
+            throw $e;
         }
     }
 

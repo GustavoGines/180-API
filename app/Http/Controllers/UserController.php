@@ -6,28 +6,46 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $search = $request->query('query') ?? $request->query('search');
+        $likeOperator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
         $users = User::whereIn('role', ['admin', 'staff'])
+            ->when($search, function ($q) use ($search, $likeOperator) {
+                $q->where(function ($sq) use ($search, $likeOperator) {
+                    $sq->where('name', $likeOperator, "%{$search}%")
+                        ->orWhere('email', $likeOperator, "%{$search}%");
+                });
+            })
             ->orderBy('name')
             ->get();
 
         return UserResource::collection($users);
     }
 
-    public function updateProfile(\Illuminate\Http\Request $request)
+    public function updateProfile(Request $request)
     {
         $user = $request->user();
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users')->ignore($user->id)->withoutTrashed(),
+            ],
             'avatar' => 'nullable|image|max:5120', // max 5MB
         ]);
 

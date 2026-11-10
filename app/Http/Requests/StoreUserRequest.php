@@ -27,7 +27,7 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->withoutTrashed()],
             'role' => ['required', 'string', Rule::in(['admin', 'staff'])], // Asumimos que solo puedes crear admin o staff
             'password' => ['required', 'confirmed', Password::min(8)],
         ];
